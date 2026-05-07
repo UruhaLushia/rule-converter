@@ -1,0 +1,4 @@
+payload:
+  - DOMAIN,example.com
+  - DOMAIN-SUFFIX,example.net
+

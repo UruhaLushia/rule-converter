@@ -1,0 +1,42 @@
+{
+  "name": "@uruhalushia/rule-converter-napi",
+  "version": "0.1.0",
+  "description": "Node.js bindings for converting mihomo, sing-box, Egern, and generic rule sets.",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "packageManager": "pnpm@10.33.0",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "rule-converter.*.node"
+  ],
+  "napi": {
+    "binaryName": "rule-converter",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl",
+      "aarch64-unknown-linux-musl",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "aarch64-pc-windows-msvc"
+    ]
+  },
+  "scripts": {
+    "build": "napi build --platform --release --no-js",
+    "build:debug": "napi build --platform --no-js",
+    "create-npm-dirs": "napi create-npm-dirs",
+    "artifacts": "napi artifacts",
+    "test": "node -e \"import('./index.js').then((m) => console.log(Object.keys(m).sort().join(',')))\""
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3"
+  },
+  "license": "UNLICENSED"
+}

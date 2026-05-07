@@ -1,0 +1,59 @@
+{
+  "defaults": {
+    "input_behavior": "auto",
+    "output_target": "mihomo",
+    "output_format": "mrs",
+    "output_behavior": "domain"
+  },
+  "jobs": [
+    {
+      "input": "rules/mihomo/*.yaml",
+      "output": "dist/ad.mrs"
+    },
+    {
+      "input": ["rules/mihomo/privacy.yaml", "rules/mihomo/reject.yaml"],
+      "output": "dist/reject.list",
+      "output_target": "general",
+      "output_format": "ruleset",
+      "output_behavior": "classical"
+    },
+    {
+      "input": "rules/mihomo/mixed.list",
+      "output": "dist/mixed.list",
+      "input_target": "general",
+      "input_format": "text",
+      "input_behavior": "classical",
+      "output_target": "general",
+      "output_format": "ruleset",
+      "output_behavior": "classical"
+    },
+    {
+      "input": "rules/mihomo/mixed.list",
+      "output": "dist/sing-box.srs",
+      "input_target": "general",
+      "input_format": "text",
+      "input_behavior": "classical",
+      "output_target": "sing-box",
+      "output_format": "srs",
+      "output_behavior": "classical"
+    },
+    {
+      "input": "rules/domains.list",
+      "output": "dist/domains.list",
+      "input_target": "general",
+      "input_format": "text",
+      "input_behavior": "domain",
+      "output_target": "general",
+      "output_format": "domainset",
+      "output_behavior": "domain"
+    },
+    {
+      "input": "rules/egern.yaml",
+      "output": "dist/egern.mrs",
+      "input_target": "egern",
+      "input_format": "yaml",
+      "output_target": "mihomo",
+      "output_format": "mrs"
+    }
+  ]
+}

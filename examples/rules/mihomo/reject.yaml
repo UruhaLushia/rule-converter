@@ -1,0 +1,4 @@
+payload:
+  - DOMAIN,ads.example.com
+  - IP-CIDR,192.0.2.0/24,no-resolve
+
