@@ -106,9 +106,9 @@ struct Cli {
     #[arg(long, value_enum, default_value_t = RuleTargetArg::Mihomo)]
     output_target: RuleTargetArg,
 
-    /// Output behavior. Use domain, ip, or classical.
-    #[arg(long, value_enum, default_value_t = BehaviorArg::Domain)]
-    output_behavior: BehaviorArg,
+    /// Output behavior. Use domain, ip, or classical. Omit to infer from output format.
+    #[arg(long, value_enum)]
+    output_behavior: Option<BehaviorArg>,
 
     /// Worker thread count for CPU-heavy conversion stages.
     #[arg(long)]
@@ -136,7 +136,9 @@ impl Cli {
         let input_behavior = self.input_behavior.into();
         let output_target = self.output_target.into();
         let output_format = self.output_format.into();
-        let output_behavior = self.output_behavior.into();
+        let output_behavior = self.output_behavior.map(Into::into).unwrap_or_else(|| {
+            rule_converter::default_output_behavior(output_target, output_format)
+        });
 
         Ok(vec![ConfigJob {
             input,

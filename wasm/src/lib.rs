@@ -1,6 +1,7 @@
 use rule_converter::{
     BehaviorMode, ConvertOptions as CoreConvertOptions, InputBehaviorMode, InputFormat,
-    OutputFormat, RuleTarget, convert_payload, write_outputs_as_to_memory_owned,
+    OutputFormat, RuleTarget, convert_payload, default_output_behavior,
+    write_outputs_as_to_memory_owned,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -79,6 +80,28 @@ fn parse_options(value: JsValue) -> Result<CoreConvertOptions, JsValue> {
     }
 
     let options: ConvertOptions = serde_wasm_bindgen::from_value(value).map_err(to_js_error)?;
+    let output_target = options
+        .output_target
+        .as_deref()
+        .map(RuleTarget::parse_arg)
+        .transpose()
+        .map_err(to_js_error)?
+        .unwrap_or(RuleTarget::Mihomo);
+    let output_format = options
+        .output_format
+        .as_deref()
+        .map(OutputFormat::parse_arg)
+        .transpose()
+        .map_err(to_js_error)?
+        .unwrap_or(OutputFormat::Mrs);
+    let output_behavior = options
+        .output_behavior
+        .as_deref()
+        .map(BehaviorMode::parse_arg)
+        .transpose()
+        .map_err(to_js_error)?
+        .unwrap_or_else(|| default_output_behavior(output_target, output_format));
+
     Ok(CoreConvertOptions {
         input_target: options
             .input_target
@@ -99,27 +122,9 @@ fn parse_options(value: JsValue) -> Result<CoreConvertOptions, JsValue> {
             .transpose()
             .map_err(to_js_error)?
             .unwrap_or(InputBehaviorMode::Auto),
-        output_target: options
-            .output_target
-            .as_deref()
-            .map(RuleTarget::parse_arg)
-            .transpose()
-            .map_err(to_js_error)?
-            .unwrap_or(RuleTarget::Mihomo),
-        output_format: options
-            .output_format
-            .as_deref()
-            .map(OutputFormat::parse_arg)
-            .transpose()
-            .map_err(to_js_error)?
-            .unwrap_or(OutputFormat::Mrs),
-        output_behavior: options
-            .output_behavior
-            .as_deref()
-            .map(BehaviorMode::parse_arg)
-            .transpose()
-            .map_err(to_js_error)?
-            .unwrap_or(BehaviorMode::Domain),
+        output_target,
+        output_format,
+        output_behavior,
     })
 }
 

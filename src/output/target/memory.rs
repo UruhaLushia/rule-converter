@@ -33,13 +33,24 @@ pub fn write_rule_sets_to_memory(
         && ((rule_target == RuleTarget::Mihomo
             && matches!(format, OutputFormat::Text | OutputFormat::Yaml)
             && behavior == BehaviorMode::Classical)
-            || (rule_target == RuleTarget::General
-                && matches!(
-                    format,
-                    OutputFormat::DomainSet | OutputFormat::RuleSet | OutputFormat::IpSet
-                )))
+            || (rule_target == RuleTarget::General && format == OutputFormat::RuleSet))
     {
         return write_mixed_rules_to_memory(mixed_rules, format);
+    }
+
+    if rule_target == RuleTarget::Egern && behavior == BehaviorMode::Classical {
+        let count = outputs.iter().map(RuleSetOutput::count).sum::<usize>();
+        if count == 0 {
+            bail!("no supported rules found for the requested conversion");
+        }
+        let mut bytes = Vec::new();
+        egern::write_rulesets_yaml_with_options(&mut bytes, outputs, no_resolve)?;
+        return Ok(vec![MemoryOutput {
+            behavior: Behavior::Domain,
+            format,
+            count,
+            bytes,
+        }]);
     }
 
     if rule_target == RuleTarget::General {
@@ -151,8 +162,16 @@ fn validate_memory_output(
         }
         _ => {}
     }
-    if format == OutputFormat::Mrs && behavior == BehaviorMode::Classical {
-        bail!("mihomo MRS output does not support classical behavior; use domain or ip");
+    if format == OutputFormat::Mrs {
+        match behavior {
+            BehaviorMode::Domain | BehaviorMode::Ipcidr => {}
+            BehaviorMode::Auto => bail!(
+                "mihomo MRS output needs explicit output behavior for mixed/classical input; use domain or ip"
+            ),
+            BehaviorMode::Classical => {
+                bail!("mihomo MRS output does not support classical behavior; use domain or ip")
+            }
+        }
     }
     Ok(())
 }

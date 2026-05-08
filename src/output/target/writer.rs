@@ -99,25 +99,33 @@ fn write_to_path(
         }
         _ => {}
     }
-    if format == OutputFormat::Mrs && behavior == BehaviorMode::Classical {
-        bail!("mihomo MRS output does not support classical behavior; use domain or ip");
+    if format == OutputFormat::Mrs {
+        match behavior {
+            BehaviorMode::Domain | BehaviorMode::Ipcidr => {}
+            BehaviorMode::Auto => bail!(
+                "mihomo MRS output needs explicit output behavior for mixed/classical input; use domain or ip"
+            ),
+            BehaviorMode::Classical => {
+                bail!("mihomo MRS output does not support classical behavior; use domain or ip")
+            }
+        }
     }
 
     if !mixed_rules.is_empty()
         && ((rule_target == RuleTarget::Mihomo
             && matches!(format, OutputFormat::Text | OutputFormat::Yaml)
             && behavior == BehaviorMode::Classical)
-            || (rule_target == RuleTarget::General
-                && matches!(
-                    format,
-                    OutputFormat::DomainSet | OutputFormat::RuleSet | OutputFormat::IpSet
-                )))
+            || (rule_target == RuleTarget::General && format == OutputFormat::RuleSet))
     {
         return write_mixed_rules_to_path(mixed_rules, base, rule_target, format);
     }
 
     if rule_target == RuleTarget::General {
         return write_generic_text_to_path(outputs, base, behavior, format);
+    }
+
+    if rule_target == RuleTarget::Egern && behavior == BehaviorMode::Classical {
+        return write_egern_classical_to_path(outputs, base, format, no_resolve);
     }
 
     let split = outputs.len() > 1;
@@ -189,6 +197,42 @@ fn write_mixed_rules_to_path(
         behavior: Behavior::Domain,
         format,
         count: rules.len(),
+        path,
+    }])
+}
+
+fn write_egern_classical_to_path(
+    outputs: &[RuleSetOutput],
+    base: &Path,
+    format: OutputFormat,
+    no_resolve: bool,
+) -> Result<Vec<OutputFile>> {
+    let count = outputs.iter().map(RuleSetOutput::count).sum::<usize>();
+    if count == 0 {
+        bail!("no supported rules found for the requested conversion");
+    }
+
+    let path =
+        resolve_output_path_for_target(base, Behavior::Domain, false, format, RuleTarget::Egern);
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create output directory {}", parent.display()))?;
+    }
+    let file = fs::File::create(&path)
+        .with_context(|| format!("failed to create output {}", path.display()))?;
+    egern::write_rulesets_yaml_with_options(
+        BufWriter::with_capacity(1024 * 1024, file),
+        outputs,
+        no_resolve,
+    )?;
+
+    Ok(vec![OutputFile {
+        behavior: Behavior::Domain,
+        format,
+        count,
         path,
     }])
 }

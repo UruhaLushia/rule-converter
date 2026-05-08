@@ -8,7 +8,7 @@ type OutputBehavior = String;
 use napi_derive::napi;
 use rule_converter::{
     BehaviorMode, InputBehaviorMode, InputFormat, OutputFormat, RuleTarget, convert_files,
-    convert_payload, write_outputs_as_owned,
+    convert_payload, default_output_behavior, write_outputs_as_owned,
 };
 
 type FileInput = Either<String, Vec<String>>;
@@ -27,7 +27,7 @@ pub struct ConvertOptions {
         ts_type = "'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset'"
     )]
     pub output_format: Option<OutputFormatOption>,
-    #[napi(ts_type = "'domain' | 'ip' | 'classical'")]
+    #[napi(ts_type = "'auto' | 'domain' | 'ip' | 'classical'")]
     pub output_behavior: Option<BehaviorOption>,
 }
 
@@ -199,7 +199,7 @@ fn parse_options(options: Option<ConvertOptions>) -> Result<rule_converter::Conv
     };
     let output_behavior = match options.output_behavior.as_deref() {
         Some(value) => BehaviorMode::parse_arg(value).map_err(to_napi_error)?,
-        None => BehaviorMode::Domain,
+        None => default_output_behavior(output_target, output_format),
     };
 
     Ok(rule_converter::ConvertOptions {

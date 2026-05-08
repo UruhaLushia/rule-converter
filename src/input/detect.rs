@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use super::InputFormat;
 use crate::RuleTarget;
 use crate::codec::mihomo::for_each_simple_yaml_rule;
-use crate::codec::mihomo::mrs::parse_prefix;
+use crate::codec::mihomo::mrs::{Behavior, parse_prefix, read_mrs};
 use crate::rules::{BehaviorMode, looks_classical};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -25,11 +25,15 @@ pub fn detect_path(path: &Path) -> Result<DetectedInput> {
         .map(|value| value.to_ascii_lowercase())
         .as_deref()
     {
-        Some("mrs") => Ok(DetectedInput {
-            target: RuleTarget::Mihomo,
-            format: InputFormat::Mrs,
-            behavior: BehaviorMode::Auto,
-        }),
+        Some("mrs") => {
+            let raw = fs::read(path)
+                .with_context(|| format!("failed to read input {}", path.display()))?;
+            Ok(DetectedInput {
+                target: RuleTarget::Mihomo,
+                format: InputFormat::Mrs,
+                behavior: detect_mrs_behavior(&raw),
+            })
+        }
         Some("srs") => Ok(DetectedInput {
             target: RuleTarget::SingBox,
             format: InputFormat::Srs,
@@ -62,10 +66,18 @@ pub fn detect_payload(raw: &[u8]) -> Result<DetectedInput> {
         return Ok(DetectedInput {
             target: RuleTarget::Mihomo,
             format: InputFormat::Mrs,
-            behavior: BehaviorMode::Auto,
+            behavior: detect_mrs_behavior(raw),
         });
     }
     detect_yaml_or_text(raw)
+}
+
+fn detect_mrs_behavior(raw: &[u8]) -> BehaviorMode {
+    match read_mrs(raw).map(|rule_set| rule_set.behavior()) {
+        Ok(Behavior::Domain) => BehaviorMode::Domain,
+        Ok(Behavior::Ipcidr) => BehaviorMode::Ipcidr,
+        Err(_) => BehaviorMode::Auto,
+    }
 }
 
 fn detect_json_or_text(raw: &[u8]) -> Result<DetectedInput> {
@@ -166,8 +178,7 @@ fn detect_text_path(path: &Path) -> Result<DetectedInput> {
 }
 
 fn detect_text_reader<R: BufRead>(reader: R) -> Result<DetectedInput> {
-    let mut saw_rule = false;
-    let mut saw_mixed_rule = false;
+    let mut behavior = None;
 
     for (index, line) in reader.lines().enumerate() {
         let line = line.context("failed to detect text input")?;
@@ -180,9 +191,15 @@ fn detect_text_reader<R: BufRead>(reader: R) -> Result<DetectedInput> {
         if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
             continue;
         }
-        saw_rule = true;
-        if looks_classical(line) || parse_prefix(line).is_ok() {
-            saw_mixed_rule = true;
+
+        let current = classify_text_rule_behavior(line);
+        behavior = match behavior {
+            None => Some(current),
+            Some(previous) if previous == current => Some(previous),
+            Some(_) => Some(BehaviorMode::Auto),
+        };
+
+        if behavior == Some(BehaviorMode::Auto) {
             break;
         }
     }
@@ -190,12 +207,18 @@ fn detect_text_reader<R: BufRead>(reader: R) -> Result<DetectedInput> {
     Ok(DetectedInput {
         target: RuleTarget::General,
         format: InputFormat::Text,
-        behavior: if saw_rule && !saw_mixed_rule {
-            BehaviorMode::Domain
-        } else {
-            BehaviorMode::Auto
-        },
+        behavior: behavior.unwrap_or(BehaviorMode::Auto),
     })
+}
+
+fn classify_text_rule_behavior(rule: &str) -> BehaviorMode {
+    if looks_classical(rule) {
+        BehaviorMode::Classical
+    } else if parse_prefix(rule).is_ok() {
+        BehaviorMode::Ipcidr
+    } else {
+        BehaviorMode::Domain
+    }
 }
 
 fn classify_rule_behavior(rule: &str) -> BehaviorMode {

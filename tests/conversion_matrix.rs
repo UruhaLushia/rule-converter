@@ -573,3 +573,146 @@ fn sing_box_json_ip_behavior_filters_mixed_input() {
     assert!(rules[0].get("domain_suffix").is_none());
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn default_mihomo_mrs_follows_domain_input_behavior() {
+    let result = convert_payload(
+        "payload:\n  - +.example.com\n",
+        ConvertOptions {
+            input_target: Some(RuleTarget::Mihomo),
+            input_format: Some(InputFormat::Yaml),
+            input_behavior: InputBehaviorMode::Auto,
+            output_target: RuleTarget::Mihomo,
+            output_format: OutputFormat::Mrs,
+            output_behavior: BehaviorMode::Auto,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.output_behavior, BehaviorMode::Domain);
+}
+
+#[test]
+fn default_mihomo_mrs_follows_ip_input_behavior() {
+    let result = convert_payload(
+        "192.0.2.0/24\n",
+        ConvertOptions {
+            input_target: Some(RuleTarget::General),
+            input_format: Some(InputFormat::Text),
+            input_behavior: InputBehaviorMode::Auto,
+            output_target: RuleTarget::Mihomo,
+            output_format: OutputFormat::Mrs,
+            output_behavior: BehaviorMode::Auto,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.output_behavior, BehaviorMode::Ipcidr);
+}
+
+#[test]
+fn default_mihomo_mrs_rejects_mixed_input_without_output_behavior() {
+    let result = convert_payload(
+        "DOMAIN,example.com\nIP-CIDR,192.0.2.0/24\n",
+        ConvertOptions {
+            input_target: Some(RuleTarget::General),
+            input_format: Some(InputFormat::Text),
+            input_behavior: InputBehaviorMode::Auto,
+            output_target: RuleTarget::Mihomo,
+            output_format: OutputFormat::Mrs,
+            output_behavior: BehaviorMode::Auto,
+        },
+    );
+
+    match result {
+        Ok(_) => panic!("mixed input must require explicit MRS behavior"),
+        Err(err) => assert!(err.to_string().contains("needs explicit output behavior")),
+    }
+}
+
+#[test]
+fn general_domainset_ignores_classical_behavior_and_outputs_only_domains() {
+    let dir = temp_dir();
+    let output = dir.join("domains.list");
+    let result = convert_payload(
+        "DOMAIN,example.com\nIP-CIDR,192.0.2.0/24\n",
+        options(
+            RuleTarget::General,
+            InputFormat::Text,
+            InputBehaviorMode::Classical,
+            RuleTarget::General,
+            OutputFormat::DomainSet,
+            BehaviorMode::Classical,
+        ),
+    )
+    .unwrap();
+
+    write_outputs_as(
+        &result,
+        &output,
+        RuleTarget::General,
+        OutputFormat::DomainSet,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_lines(&output),
+        BTreeSet::from(["example.com".to_string()])
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn general_ipset_ignores_domain_behavior_and_outputs_only_ips() {
+    let dir = temp_dir();
+    let output = dir.join("ips.list");
+    let result = convert_payload(
+        "DOMAIN,example.com\nIP-CIDR,192.0.2.0/24\n",
+        options(
+            RuleTarget::General,
+            InputFormat::Text,
+            InputBehaviorMode::Classical,
+            RuleTarget::General,
+            OutputFormat::IpSet,
+            BehaviorMode::Domain,
+        ),
+    )
+    .unwrap();
+
+    write_outputs_as(&result, &output, RuleTarget::General, OutputFormat::IpSet).unwrap();
+
+    assert_eq!(
+        read_lines(&output),
+        BTreeSet::from(["192.0.2.0/24".to_string()])
+    );
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn egern_classical_outputs_single_mixed_ruleset_yaml() {
+    let dir = temp_dir();
+    let output = dir.join("egern.yaml");
+    let result = convert_payload(
+        "payload:\n  - DOMAIN-SUFFIX,example.com\n  - DOMAIN,ads.example.net\n  - IP-CIDR,10.0.0.0/8,no-resolve\n",
+        options(
+            RuleTarget::Mihomo,
+            InputFormat::Yaml,
+            InputBehaviorMode::Classical,
+            RuleTarget::Egern,
+            OutputFormat::RuleSet,
+            BehaviorMode::Classical,
+        ),
+    )
+    .unwrap();
+
+    let files =
+        write_outputs_as(&result, &output, RuleTarget::Egern, OutputFormat::RuleSet).unwrap();
+    let yaml = fs::read_to_string(&output).unwrap();
+
+    assert_eq!(files.len(), 1);
+    assert!(yaml.contains("domain_set:"));
+    assert!(yaml.contains("domain_suffix_set:"));
+    assert!(yaml.contains("no_resolve: true"));
+    assert!(yaml.contains("ip_cidr_set:"));
+    fs::remove_dir_all(dir).unwrap();
+}

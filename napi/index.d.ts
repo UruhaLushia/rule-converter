@@ -7,7 +7,7 @@ export declare function convertFileToPath(input: string | string[], output: stri
 export type RuleTarget = 'mihomo' | 'general' | 'egern' | 'sing-box'
 export type RuleFormat = 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset'
 export type InputBehavior = 'auto' | 'domain' | 'ip' | 'classical'
-export type OutputBehavior = 'domain' | 'ip' | 'classical'
+export type OutputBehavior = 'auto' | 'domain' | 'ip' | 'classical'
 
 export interface ConvertOptions {
   inputTarget?: RuleTarget

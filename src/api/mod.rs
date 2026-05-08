@@ -33,9 +33,80 @@ impl Default for ConvertOptions {
             input_behavior: InputBehaviorMode::Auto,
             output_target: RuleTarget::Mihomo,
             output_format: OutputFormat::Mrs,
-            output_behavior: BehaviorMode::Domain,
+            output_behavior: BehaviorMode::Auto,
         }
     }
+}
+
+pub fn default_output_behavior(
+    output_target: RuleTarget,
+    output_format: OutputFormat,
+) -> BehaviorMode {
+    match (output_target, output_format) {
+        (RuleTarget::General, OutputFormat::IpSet) => BehaviorMode::Ipcidr,
+        (RuleTarget::General, OutputFormat::DomainSet) => BehaviorMode::Domain,
+        (RuleTarget::Mihomo, OutputFormat::Mrs) => BehaviorMode::Auto,
+        _ => BehaviorMode::Classical,
+    }
+}
+
+fn normalize_options(mut options: ConvertOptions) -> ConvertOptions {
+    options.output_behavior = normalize_output_behavior(
+        options.output_target,
+        options.output_format,
+        options.output_behavior,
+    );
+    options
+}
+
+fn normalize_output_behavior(
+    output_target: RuleTarget,
+    output_format: OutputFormat,
+    output_behavior: BehaviorMode,
+) -> BehaviorMode {
+    match (output_target, output_format) {
+        (RuleTarget::General, OutputFormat::DomainSet) => BehaviorMode::Domain,
+        (RuleTarget::General, OutputFormat::IpSet) => BehaviorMode::Ipcidr,
+        _ => output_behavior,
+    }
+}
+
+fn resolve_output_behavior(
+    options: ConvertOptions,
+    input_behavior: InputBehaviorMode,
+) -> Result<BehaviorMode> {
+    let behavior = normalize_output_behavior(
+        options.output_target,
+        options.output_format,
+        options.output_behavior,
+    );
+    if behavior != BehaviorMode::Auto {
+        return Ok(behavior);
+    }
+
+    match (options.output_target, options.output_format, input_behavior) {
+        (RuleTarget::Mihomo, OutputFormat::Mrs, InputBehaviorMode::Domain) => {
+            Ok(BehaviorMode::Domain)
+        }
+        (RuleTarget::Mihomo, OutputFormat::Mrs, InputBehaviorMode::Ipcidr) => {
+            Ok(BehaviorMode::Ipcidr)
+        }
+        (RuleTarget::Mihomo, OutputFormat::Mrs, _) => bail!(
+            "mihomo MRS output needs explicit output behavior for mixed/classical input; use domain or ip"
+        ),
+        _ => Ok(default_output_behavior(
+            options.output_target,
+            options.output_format,
+        )),
+    }
+}
+
+fn options_with_output_behavior(
+    mut options: ConvertOptions,
+    output_behavior: BehaviorMode,
+) -> ConvertOptions {
+    options.output_behavior = output_behavior;
+    options
 }
 
 pub struct ConvertResult {
@@ -74,14 +145,16 @@ pub fn convert_payload(
     payload: impl AsRef<[u8]>,
     options: ConvertOptions,
 ) -> Result<ConvertResult> {
+    let options = normalize_options(options);
     let payload = payload.as_ref();
     let detected = apply_input_options(detect_payload(payload)?, options);
-    let output_behavior = options.output_behavior;
-    let converter =
-        converter_for_options(effective_input_behavior(detected), detected.target, options);
+    let input_behavior = effective_input_behavior(detected);
+    let output_behavior = resolve_output_behavior(options, input_behavior)?;
+    let options = options_with_output_behavior(options, output_behavior);
+    let converter = converter_for_options(input_behavior, detected.target, options);
     let mut builder = converter.builder_with_options(
-        should_keep_mixed_rules(options, effective_input_behavior(detected)),
-        should_build_rule_sets(options, effective_input_behavior(detected)),
+        should_keep_mixed_rules(options, input_behavior),
+        should_build_rule_sets(options, input_behavior),
         should_keep_domain_set_lines(options),
         should_keep_ip_set_lines(options),
     );
@@ -111,10 +184,12 @@ where
     P: AsRef<Path>,
     I: IntoIterator<Item = P>,
 {
+    let options = normalize_options(options);
     let paths = expand_file_paths(paths)?;
     let detected = detect_file_inputs(&paths, options)?;
-    let output_behavior = options.output_behavior;
     let input_behavior = merge_input_behavior(detected.iter().copied());
+    let output_behavior = resolve_output_behavior(options, input_behavior)?;
+    let options = options_with_output_behavior(options, output_behavior);
     let input_target = merge_input_target(detected.iter().copied());
     let converter = converter_for_options(input_behavior, input_target, options);
     let mut builder = converter.builder_with_options(
@@ -226,10 +301,8 @@ fn input_behavior_to_output_mode(behavior: InputBehaviorMode) -> BehaviorMode {
 
 fn should_build_rule_sets(options: ConvertOptions, _input_behavior: InputBehaviorMode) -> bool {
     match (options.output_target, options.output_format) {
-        (
-            RuleTarget::General,
-            OutputFormat::DomainSet | OutputFormat::RuleSet | OutputFormat::IpSet,
-        ) => false,
+        (RuleTarget::General, OutputFormat::DomainSet | OutputFormat::IpSet) => true,
+        (RuleTarget::General, OutputFormat::RuleSet) => false,
         (RuleTarget::Mihomo, OutputFormat::Text | OutputFormat::Yaml) => {
             options.output_behavior != BehaviorMode::Classical
         }
@@ -251,7 +324,8 @@ fn should_keep_mixed_rules(options: ConvertOptions, input_behavior: InputBehavio
             options.output_behavior == BehaviorMode::Classical
         }
         (RuleTarget::General, OutputFormat::RuleSet) => true,
-        (RuleTarget::General, OutputFormat::DomainSet | OutputFormat::IpSet) => true,
+        (RuleTarget::General, OutputFormat::DomainSet | OutputFormat::IpSet) => false,
+        (RuleTarget::Egern, OutputFormat::RuleSet) => false,
         _ => {
             options.output_behavior == BehaviorMode::Classical
                 && input_behavior == InputBehaviorMode::Classical

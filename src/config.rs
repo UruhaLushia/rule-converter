@@ -187,7 +187,7 @@ impl ConfigJobFile {
             .or(defaults.output_behavior.as_deref())
             .map(BehaviorMode::parse_arg)
             .transpose()?
-            .unwrap_or(BehaviorMode::Domain);
+            .unwrap_or_else(|| crate::api::default_output_behavior(output_target, output_format));
 
         Ok(ConfigJob {
             input: self.input.resolve(base)?,

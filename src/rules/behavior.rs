@@ -19,6 +19,7 @@ pub enum InputBehaviorMode {
 impl BehaviorMode {
     pub fn parse_arg(arg: &str) -> Result<Self> {
         match arg {
+            "auto" => Ok(Self::Auto),
             "domain" => Ok(Self::Domain),
             "ip" => Ok(Self::Ipcidr),
             "classical" => Ok(Self::Classical),

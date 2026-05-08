@@ -64,6 +64,24 @@ pub fn write_ruleset_yaml_with_options<W: Write>(
     }
 }
 
+pub fn write_rulesets_yaml_with_options<W: Write>(
+    mut writer: W,
+    rule_sets: &[RuleSetOutput],
+    no_resolve: bool,
+) -> std::io::Result<()> {
+    let mut wrote_no_resolve = false;
+    for rule_set in rule_sets {
+        match rule_set.behavior() {
+            Behavior::Domain => write_domain_ruleset(&mut writer, rule_set)?,
+            Behavior::Ipcidr => {
+                write_ipcidr_ruleset(&mut writer, rule_set, no_resolve && !wrote_no_resolve)?;
+                wrote_no_resolve |= no_resolve;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn write_domain_ruleset<W: Write>(writer: &mut W, rule_set: &RuleSetOutput) -> std::io::Result<()> {
     let RuleSetOutput::Domain(domain) = rule_set else {
         return Ok(());

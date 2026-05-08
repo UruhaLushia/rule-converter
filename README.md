@@ -29,11 +29,11 @@
 
 输出行为：
 
-- `domain`: 按 domain 输出。`mihomo + text/yaml` 使用 mihomo/Clash domain 通配语法，`general + domainset` 使用 domain-set 语法。
+- `domain`: 按 domain 输出。`mihomo + text/yaml` 使用 mihomo/Clash domain 通配语法。
 - `ip`: 按 IP CIDR 输出。
-- `classical`: 输出为带明确规则类型、无策略字段的 classical/mixed ruleset，适用于 general ruleset、mihomo YAML、Egern YAML、sing-box JSON/SRS。
+- `classical`: 输出为带明确规则类型、无策略字段的 classical/mixed ruleset，适用于 non-mihomo ruleset、mihomo YAML、sing-box JSON/SRS。
 
-mihomo MRS 只支持 `domain`、`ip` 输出行为，不支持 `classical`。sing-box SRS 是独立格式，不复用 mihomo MRS 容器。
+`general + domainset` 和 `general + ipset` 不使用 `output_behavior`，格式本身决定输出 domain 或 IP。non-mihomo ruleset 支持 `output_behavior`：`domain`/`ip` 只保留对应类型，`classical` 映射为目标平台的 mixed ruleset。mihomo MRS 只支持 `domain`、`ip`；未指定行为时会跟随明确的 domain/ip 输入，mixed/classical 输入需要显式指定 `domain` 或 `ip`。sing-box SRS 是独立格式，不复用 mihomo MRS 容器。
 
 输入覆盖项：
 
@@ -66,7 +66,7 @@ pnpm --dir wasm build
 
 ## CLI 用法
 
-默认输出是 `mihomo + mrs + domain`：
+默认输出是 `mihomo + mrs + auto`：纯 domain/IP 输入会跟随输入类型；mixed/classical 输入需要显式指定 `--output-behavior domain` 或 `ip`。
 
 ```bash
 target/release/rule-converter rules.yaml rules.mrs
@@ -250,7 +250,7 @@ target/release/rule-converter --config examples/config.yaml
 - `input_behavior`: 可选，`auto`、`domain`、`ip`、`classical`。
 - `output_target`: `mihomo`、`general`、`egern`、`sing-box`。
 - `output_format`: mihomo 使用 `mrs`、`text`、`yaml`；sing-box 使用 `srs`、`json`；egern 使用 `ruleset`；general 使用 `domainset`、`ruleset`、`ipset`。
-- `output_behavior`: `domain`、`ip`、`classical`。`classical` 用于带明确规则类型的 mixed/classical 输出。
+- `output_behavior`: 可选，`auto`、`domain`、`ip`、`classical`。`domainset`/`ipset` 不使用该项；mihomo MRS 的 `auto` 会跟随明确的输入类型。
 - `defaults`: 多任务配置的默认值。
 
 示例配置见 `examples/`：
