@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "files": ["pkg"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UruhaLushia/rule-converter.git"
+  },
+  "homepage": "https://github.com/UruhaLushia/rule-converter",
+  "bugs": {
+    "url": "https://github.com/UruhaLushia/rule-converter/issues"
+  },
+  "license": "GPL-3.0-only",
   "scripts": {
     "build": "wasm-pack build --target web --release --out-dir pkg --scope uruhalushia --no-opt",
     "build:bundler": "wasm-pack build --target bundler --release --out-dir pkg --scope uruhalushia --no-opt"
