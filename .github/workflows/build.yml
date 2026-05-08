@@ -50,12 +50,24 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install cross (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && !contains(matrix.target, 'loongarch64') && matrix.target != 'riscv64gc-unknown-linux-musl'
         uses: taiki-e/install-action@cross
 
-      - name: Build (Linux)
-        if: runner.os == 'Linux'
+      - name: Install Zig (Linux zig targets)
+        if: runner.os == 'Linux' && (contains(matrix.target, 'loongarch64') || matrix.target == 'riscv64gc-unknown-linux-musl')
+        uses: mlugg/setup-zig@v2
+
+      - name: Install cargo-zigbuild (Linux zig targets)
+        if: runner.os == 'Linux' && (contains(matrix.target, 'loongarch64') || matrix.target == 'riscv64gc-unknown-linux-musl')
+        uses: taiki-e/install-action@cargo-zigbuild
+
+      - name: Build (Linux cross)
+        if: runner.os == 'Linux' && !contains(matrix.target, 'loongarch64') && matrix.target != 'riscv64gc-unknown-linux-musl'
         run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build (Linux zig)
+        if: runner.os == 'Linux' && (contains(matrix.target, 'loongarch64') || matrix.target == 'riscv64gc-unknown-linux-musl')
+        run: cargo zigbuild --release --target ${{ matrix.target }}
 
       - name: Build (macOS / Windows)
         if: runner.os != 'Linux'
@@ -110,8 +122,16 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install cross (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && !contains(matrix.target, 'loongarch64') && matrix.target != 'riscv64gc-unknown-linux-musl'
         uses: taiki-e/install-action@cross
+
+      - name: Install Zig (Linux zig targets)
+        if: runner.os == 'Linux' && (contains(matrix.target, 'loongarch64') || matrix.target == 'riscv64gc-unknown-linux-musl')
+        uses: mlugg/setup-zig@v2
+
+      - name: Install cargo-zigbuild (Linux zig targets)
+        if: runner.os == 'Linux' && (contains(matrix.target, 'loongarch64') || matrix.target == 'riscv64gc-unknown-linux-musl')
+        uses: taiki-e/install-action@cargo-zigbuild
 
       - name: Install napi-rs CLI
         run: npm install -g @napi-rs/cli
@@ -120,9 +140,14 @@ jobs:
         run: npm install
         working-directory: napi
 
-      - name: Build .node (Linux)
-        if: runner.os == 'Linux'
+      - name: Build .node (Linux cross)
+        if: runner.os == 'Linux' && !contains(matrix.target, 'loongarch64') && matrix.target != 'riscv64gc-unknown-linux-musl'
         run: napi build --platform --release --target ${{ matrix.target }} --use-cross
+        working-directory: napi
+
+      - name: Build .node (Linux zig)
+        if: runner.os == 'Linux' && (contains(matrix.target, 'loongarch64') || matrix.target == 'riscv64gc-unknown-linux-musl')
+        run: napi build --platform --release --target ${{ matrix.target }} --cross-compile
         working-directory: napi
 
       - name: Build .node (macOS / Windows)
