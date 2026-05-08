@@ -25,10 +25,13 @@ jobs:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu,      output: linux-amd64-gnu    }
           - { os: ubuntu-latest, target: aarch64-unknown-linux-gnu,     output: linux-arm64-gnu    }
           - { os: ubuntu-latest, target: riscv64gc-unknown-linux-gnu,   output: linux-riscv64-gnu  }
+          - { os: ubuntu-latest, target: loongarch64-unknown-linux-gnu, output: linux-loong64-gnu }
 
           # Linux musl (static)
           - { os: ubuntu-latest, target: x86_64-unknown-linux-musl,     output: linux-amd64-musl   }
           - { os: ubuntu-latest, target: aarch64-unknown-linux-musl,    output: linux-arm64-musl   }
+          - { os: ubuntu-latest, target: riscv64gc-unknown-linux-musl,   output: linux-riscv64-musl }
+          - { os: ubuntu-latest, target: loongarch64-unknown-linux-musl, output: linux-loong64-musl }
 
           # macOS — native runner, add both targets for universal coverage
           - { os: macos-latest, target: x86_64-apple-darwin,            output: darwin-amd64   }
@@ -80,9 +83,14 @@ jobs:
         include:
           - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu  }
           - { os: ubuntu-latest,  target: aarch64-unknown-linux-gnu }
+          - { os: ubuntu-latest,  target: riscv64gc-unknown-linux-gnu }
+          - { os: ubuntu-latest,  target: loongarch64-unknown-linux-gnu }
+
           - { os: ubuntu-latest,  target: x86_64-unknown-linux-musl }
           - { os: ubuntu-latest,  target: aarch64-unknown-linux-musl  }
-          - { os: ubuntu-latest,  target: riscv64gc-unknown-linux-gnu }
+          - { os: ubuntu-latest,  target: riscv64gc-unknown-linux-musl }
+          - { os: ubuntu-latest,  target: loongarch64-unknown-linux-musl }
+
           - { os: macos-latest,   target: x86_64-apple-darwin }
           - { os: macos-latest,   target: aarch64-apple-darwin  }
           - { os: windows-latest, target: x86_64-pc-windows-msvc  }
@@ -94,7 +102,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -137,7 +145,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Enable pnpm
         run: corepack enable pnpm
@@ -236,151 +244,153 @@ jobs:
           files: bin/*
 
 
-  # publish-wasm-npm:
-  #   if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.version, 'v'))
-  #   needs: [build-wasm]
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #
-  #     - name: Setup Node
-  #       uses: actions/setup-node@v6
-  #       with:
-  #         node-version: 22
-  #         registry-url: https://registry.npmjs.org
-  #
-  #     - name: Enable pnpm
-  #       run: corepack enable pnpm
-  #
-  #     - name: Install Rust toolchain
-  #       uses: dtolnay/rust-toolchain@stable
-  #       with:
-  #         targets: wasm32-unknown-unknown
-  #
-  #     - name: Install wasm-pack
-  #       uses: taiki-e/install-action@wasm-pack
-  #
-  #     - name: Build WASM package
-  #       run: pnpm --dir wasm build:bundler
-  #
-  #     - name: Set npm package version
-  #       shell: bash
-  #       run: |
-  #         if [ -n "${{ github.event.inputs.version }}" ]; then
-  #           VERSION="${{ github.event.inputs.version }}"
-  #         else
-  #           VERSION="${GITHUB_REF_NAME}"
-  #         fi
-  #         VERSION="${VERSION#v}"
-  #         npm version "$VERSION" --no-git-tag-version --allow-same-version
-  #       working-directory: wasm/pkg
-  #
-  #     - name: Publish WASM npm package
-  #       run: npm publish --access public --provenance
-  #       working-directory: wasm/pkg
-  #       env:
-  #         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  publish-wasm-npm:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.version, 'v'))
+    needs: [build-wasm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
 
-  # publish-npm:
-  # if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.version, 'v'))
-  # needs: [build-node]
-  # runs-on: ubuntu-latest
-  # permissions:
-  #   contents: read
-  #   id-token: write
-  # steps:
-  #   - uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          registry-url: https://registry.npmjs.org
 
-  #   - name: Setup Node
-  #     uses: actions/setup-node@v6
-  #     with:
-  #       node-version: 24
-  #       registry-url: https://registry.npmjs.org
+      - name: Enable pnpm
+        run: corepack enable pnpm
 
-  #   - name: Print npm version
-  #     run: |
-  #       node --version
-  #       npm --version
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
-  #   - name: Install npm dependencies
-  #     run: npm ci
-  #     working-directory: napi
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@wasm-pack
 
-  #   - name: Set npm package version
-  #     shell: bash
-  #     working-directory: napi
-  #     run: |
-  #       if [ -n "${{ github.event.inputs.version }}" ]; then
-  #         VERSION="${{ github.event.inputs.version }}"
-  #       else
-  #         VERSION="${GITHUB_REF_NAME}"
-  #       fi
-  #       VERSION="${VERSION#v}"
-  #       npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - name: Build WASM package
+        run: pnpm --dir wasm build:bundler
 
-  #   - name: Create platform npm package dirs
-  #     run: npm run create-npm-dirs
-  #     working-directory: napi
+      - name: Set npm package version
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${VERSION#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+        working-directory: wasm/pkg
 
-  #   - name: Download node artifacts
-  #     uses: actions/download-artifact@v8
-  #     with:
-  #       pattern: node-*
-  #       path: napi/artifacts
-  #       merge-multiple: true
+      - name: Publish WASM npm package
+        run: npm publish --access public --provenance
+        working-directory: wasm/pkg
 
-  #   - name: Copy native artifacts into platform packages
-  #     working-directory: napi
-  #     run: npm run artifacts
+  publish-npm:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.version, 'v'))
+    needs: [build-node]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
 
-  #   - name: Verify native artifacts
-  #     shell: bash
-  #     working-directory: napi
-  #     run: |
-  #       for target in \
-  #         linux-x64-gnu \
-  #         linux-arm64-gnu \
-  #         linux-x64-musl \
-  #         linux-arm64-musl \
-  #         linux-riscv64-gnu \
-  #         darwin-x64 \
-  #         darwin-arm64 \
-  #         win32-x64-msvc \
-  #         win32-ia32-msvc \
-  #         win32-arm64-msvc; do
-  #         test -f "npm/${target}/rule-converter.${target}.node"
-  #         test -f "npm/${target}/package.json"
-  #       done
-  #       test -f index.js
-  #       test -f index.d.ts
-  #       test -f README.md
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          registry-url: https://registry.npmjs.org
 
-  #   - name: Publish platform npm packages
-  #     run: npx napi pre-publish --tag-style npm --no-gh-release
-  #     working-directory: napi
+      - name: Print npm version
+        run: |
+          node --version
+          npm --version
 
-  #   - name: Verify npm package contents
-  #     shell: bash
-  #     run: |
-  #       npm pack --dry-run --json > pack.json
-  #       node - <<'NODE'
-  #       const fs = require('node:fs')
-  #       const [{ files }] = JSON.parse(fs.readFileSync('pack.json', 'utf8'))
-  #       const names = files.map((file) => file.path)
-  #       if (names.some((name) => name.endsWith('.node'))) {
-  #         throw new Error(`Main npm package must not include native binaries: ${names.join(', ')}`)
-  #       }
-  #       for (const required of ['index.js', 'index.d.ts', 'README.md', 'package.json']) {
-  #         if (!names.includes(required)) {
-  #           throw new Error(`Missing ${required} from main npm package`)
-  #         }
-  #       }
-  #       NODE
-  #     working-directory: napi
+      - name: Install npm dependencies
+        run: npm install
+        working-directory: napi
 
-  #   - name: Publish npm package
-  #     run: npm publish --ignore-scripts --access public
-  #     working-directory: napi
+      - name: Set npm package version
+        shell: bash
+        working-directory: napi
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${VERSION#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Create platform npm package dirs
+        run: npm run create-npm-dirs
+        working-directory: napi
+
+      - name: Download node artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: node-*
+          path: napi/artifacts
+          merge-multiple: true
+
+      - name: Copy native artifacts into platform packages
+        working-directory: napi
+        run: npm run artifacts
+
+      - name: Verify native artifacts
+        shell: bash
+        working-directory: napi
+        run: |
+          for target in \
+            linux-x64-gnu \
+            linux-arm64-gnu \
+            linux-riscv64-gnu \
+            linux-loong64-gnu \
+            linux-x64-musl \
+            linux-arm64-musl \
+            linux-riscv64-musl \
+            linux-loong64-musl \
+            darwin-x64 \
+            darwin-arm64 \
+            win32-x64-msvc \
+            win32-arm64-msvc; do
+            test -f "npm/${target}/rule-converter.${target}.node"
+            test -f "npm/${target}/package.json"
+          done
+          test -f index.js
+          test -f index.d.ts
+          test -f README.md
+
+      - name: Publish platform npm packages
+        run: npx napi pre-publish --tag-style npm --no-gh-release
+        working-directory: napi
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Verify npm package contents
+        shell: bash
+        run: |
+          npm pack --dry-run --json > pack.json
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const [{ files }] = JSON.parse(fs.readFileSync('pack.json', 'utf8'))
+          const names = files.map((file) => file.path)
+          if (names.some((name) => name.endsWith('.node'))) {
+            throw new Error(`Main npm package must not include native binaries: ${names.join(', ')}`)
+          }
+          for (const required of ['index.js', 'index.d.ts', 'README.md', 'package.json']) {
+            if (!names.includes(required)) {
+              throw new Error(`Missing ${required} from main npm package`)
+            }
+          }
+          NODE
+        working-directory: napi
+
+      - name: Publish npm package
+        run: npm publish --ignore-scripts --access public --provenance
+        working-directory: napi
