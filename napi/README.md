@@ -13,7 +13,12 @@ pnpm --dir napi build
 
 ```js
 import { writeFileSync } from 'node:fs'
-import { convertPayloadStringToMrs, convertFileToPath } from '@uruhalushia/rule-converter-napi'
+import {
+  convertPayloadStringToMrs,
+  convertPayloadStringToString,
+  convertFileToBuffer,
+  convertFileToPath,
+} from '@uruhalushia/rule-converter-napi'
 
 const payload = `
 payload:
@@ -35,9 +40,28 @@ for (const output of result.outputs) {
   writeFileSync(`${output.behavior}.mrs`, output.bytes)
 }
 
+const text = convertPayloadStringToString(payload, {
+  inputTarget: 'mihomo',
+  inputFormat: 'yaml',
+  inputBehavior: 'classical',
+  outputTarget: 'general',
+  outputFormat: 'ruleset',
+  outputBehavior: 'classical',
+})
+
+console.log(text.outputs[0].text)
+
+const srs = convertFileToBuffer('rules.yaml', {
+  outputTarget: 'sing-box',
+  outputFormat: 'srs',
+  outputBehavior: 'classical',
+})
+
+writeFileSync('rules.srs', srs.outputs[0].buffer)
+
 const written = convertFileToPath('rules.yaml', 'dist/rules.list', {
   outputTarget: 'general',
-  outputFormat: 'text',
+  outputFormat: 'ruleset',
   outputBehavior: 'classical',
 })
 
@@ -59,6 +83,12 @@ convertFileToPath(['/path/rules-a.yaml', '/path/rules-b.yaml'], 'dist/ad.mrs', {
 - `convertPayloadToMrs(payload, options?)`: accepts `Uint8Array` and returns generated MRS files in memory.
 - `convertPayloadStringToMrs(payload, options?)`: accepts a string and returns generated MRS files in memory.
 - `convertFileToMrs(input, options?)`: reads one file, directory, wildcard, or path array and returns generated MRS files in memory.
+- `convertPayloadToBuffer(payload, options?)`: accepts `Uint8Array` and returns generated files as Node.js `Buffer` objects in memory.
+- `convertPayloadStringToBuffer(payload, options?)`: accepts a string and returns generated files as Node.js `Buffer` objects in memory.
+- `convertFileToBuffer(input, options?)`: reads one file, directory, wildcard, or path array and returns generated files as Node.js `Buffer` objects in memory.
+- `convertPayloadToString(payload, options?)`: accepts `Uint8Array` and returns generated text output as strings.
+- `convertPayloadStringToString(payload, options?)`: accepts a string and returns generated text output as strings.
+- `convertFileToString(input, options?)`: reads one file, directory, wildcard, or path array and returns generated text output as strings.
 - `convertFileToPath(input, output, options?)`: writes converted outputs to disk.
 
 ```ts
@@ -82,6 +112,8 @@ Defaults:
 - `outputBehavior`: `domain`
 
 mihomo MRS output supports only `domain` and `ip`. sing-box JSON/SRS is available with `outputTarget: 'sing-box'` and `outputFormat: 'json' | 'srs'`.
+
+String output supports text formats only: `text`, `yaml`, `json`, `domainset`, `ruleset`, and `ipset`. Use the buffer functions for binary `mrs` and `srs` output.
 
 `mihomo + text/yaml + domain` uses mihomo/Clash domain wildcard syntax such as `+.example.com`; `general + domainset + domain` uses domain-set syntax where `.example.com` means the domain itself and all subdomains.
 

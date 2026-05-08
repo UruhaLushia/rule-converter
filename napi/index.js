@@ -100,5 +100,11 @@ if (!nativeBinding) {
 export default nativeBinding
 export const convertPayloadToMrs = nativeBinding.convertPayloadToMrs
 export const convertPayloadStringToMrs = nativeBinding.convertPayloadStringToMrs
+export const convertPayloadToBuffer = nativeBinding.convertPayloadToBuffer
+export const convertPayloadStringToBuffer = nativeBinding.convertPayloadStringToBuffer
+export const convertPayloadToString = nativeBinding.convertPayloadToString
+export const convertPayloadStringToString = nativeBinding.convertPayloadStringToString
 export const convertFileToMrs = nativeBinding.convertFileToMrs
+export const convertFileToBuffer = nativeBinding.convertFileToBuffer
+export const convertFileToString = nativeBinding.convertFileToString
 export const convertFileToPath = nativeBinding.convertFileToPath

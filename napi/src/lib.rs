@@ -1,4 +1,4 @@
-use napi::bindgen_prelude::{Either, Result, Uint8Array};
+use napi::bindgen_prelude::{Buffer, Either, Result, Uint8Array};
 
 type BehaviorOption = String;
 type InputFormatOption = String;
@@ -9,6 +9,7 @@ use napi_derive::napi;
 use rule_converter::{
     BehaviorMode, InputBehaviorMode, InputFormat, OutputFormat, RuleTarget, convert_files,
     convert_payload, default_output_behavior, write_outputs_as_owned,
+    write_outputs_as_to_memory_owned,
 };
 
 type FileInput = Either<String, Vec<String>>;
@@ -40,6 +41,23 @@ pub struct ConvertOutput {
 }
 
 #[napi(object)]
+pub struct ConvertStringOutput {
+    #[napi(ts_type = "'domain' | 'ip'")]
+    pub behavior: OutputBehavior,
+    pub count: u32,
+    pub text: String,
+}
+
+#[napi(object)]
+pub struct ConvertBufferOutput {
+    #[napi(ts_type = "'domain' | 'ip'")]
+    pub behavior: OutputBehavior,
+    pub count: u32,
+    #[napi(ts_type = "Uint8Array")]
+    pub buffer: Buffer,
+}
+
+#[napi(object)]
 pub struct WrittenOutput {
     #[napi(ts_type = "'domain' | 'ip'")]
     pub behavior: OutputBehavior,
@@ -56,6 +74,18 @@ pub struct SkippedRule {
 #[napi(object)]
 pub struct ConvertResult {
     pub outputs: Vec<ConvertOutput>,
+    pub skipped: Vec<SkippedRule>,
+}
+
+#[napi(object)]
+pub struct ConvertStringResult {
+    pub outputs: Vec<ConvertStringOutput>,
+    pub skipped: Vec<SkippedRule>,
+}
+
+#[napi(object)]
+pub struct ConvertBufferResult {
+    pub outputs: Vec<ConvertBufferOutput>,
     pub skipped: Vec<SkippedRule>,
 }
 
@@ -102,6 +132,47 @@ pub fn convert_payload_string_to_mrs(
 }
 
 #[napi]
+pub fn convert_payload_to_buffer(
+    payload: Uint8Array,
+    options: Option<ConvertOptions>,
+) -> Result<ConvertBufferResult> {
+    let options = parse_options(options)?;
+    let output_target = options.output_target;
+    let output_format = options.output_format;
+    let result = convert_payload(payload.as_ref(), options).map_err(to_napi_error)?;
+    convert_result_to_buffer(result, output_target, output_format)
+}
+
+#[napi]
+pub fn convert_payload_string_to_buffer(
+    payload: String,
+    options: Option<ConvertOptions>,
+) -> Result<ConvertBufferResult> {
+    convert_payload_to_buffer(Uint8Array::from(payload.into_bytes()), options)
+}
+
+#[napi]
+pub fn convert_payload_to_string(
+    payload: Uint8Array,
+    options: Option<ConvertOptions>,
+) -> Result<ConvertStringResult> {
+    let options = parse_options(options)?;
+    ensure_text_output(options.output_format)?;
+    let output_target = options.output_target;
+    let output_format = options.output_format;
+    let result = convert_payload(payload.as_ref(), options).map_err(to_napi_error)?;
+    convert_result_to_string(result, output_target, output_format)
+}
+
+#[napi]
+pub fn convert_payload_string_to_string(
+    payload: String,
+    options: Option<ConvertOptions>,
+) -> Result<ConvertStringResult> {
+    convert_payload_to_string(Uint8Array::from(payload.into_bytes()), options)
+}
+
+#[napi]
 pub fn convert_file_to_mrs(
     #[napi(ts_arg_type = "string | string[]")] input: FileInput,
     options: Option<ConvertOptions>,
@@ -128,6 +199,33 @@ pub fn convert_file_to_mrs(
         outputs,
         skipped: map_skipped(result.skipped),
     })
+}
+
+#[napi]
+pub fn convert_file_to_buffer(
+    #[napi(ts_arg_type = "string | string[]")] input: FileInput,
+    options: Option<ConvertOptions>,
+) -> Result<ConvertBufferResult> {
+    let options = parse_options(options)?;
+    let output_target = options.output_target;
+    let output_format = options.output_format;
+    let input = normalize_file_input(input)?;
+    let result = convert_files(&input, options).map_err(to_napi_error)?;
+    convert_result_to_buffer(result, output_target, output_format)
+}
+
+#[napi]
+pub fn convert_file_to_string(
+    #[napi(ts_arg_type = "string | string[]")] input: FileInput,
+    options: Option<ConvertOptions>,
+) -> Result<ConvertStringResult> {
+    let options = parse_options(options)?;
+    ensure_text_output(options.output_format)?;
+    let output_target = options.output_target;
+    let output_format = options.output_format;
+    let input = normalize_file_input(input)?;
+    let result = convert_files(&input, options).map_err(to_napi_error)?;
+    convert_result_to_string(result, output_target, output_format)
 }
 
 #[napi]
@@ -219,6 +317,64 @@ fn ensure_mrs_behavior(behavior: BehaviorMode) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+fn ensure_text_output(format: OutputFormat) -> Result<()> {
+    if matches!(format, OutputFormat::Mrs | OutputFormat::Srs) {
+        return Err(napi::Error::from_reason(
+            "string output only supports text formats; use convertPayloadToBuffer or convertFileToBuffer for binary output",
+        ));
+    }
+    Ok(())
+}
+
+fn convert_result_to_buffer(
+    result: rule_converter::ConvertResult,
+    target: RuleTarget,
+    format: OutputFormat,
+) -> Result<ConvertBufferResult> {
+    let (outputs, skipped) =
+        write_outputs_as_to_memory_owned(result, target, format).map_err(to_napi_error)?;
+    let outputs = outputs
+        .into_iter()
+        .map(|output| ConvertBufferOutput {
+            behavior: output.behavior.as_str().to_string(),
+            count: output.count as u32,
+            buffer: Buffer::from(output.bytes),
+        })
+        .collect();
+
+    Ok(ConvertBufferResult {
+        outputs,
+        skipped: map_skipped(skipped),
+    })
+}
+
+fn convert_result_to_string(
+    result: rule_converter::ConvertResult,
+    target: RuleTarget,
+    format: OutputFormat,
+) -> Result<ConvertStringResult> {
+    let (outputs, skipped) =
+        write_outputs_as_to_memory_owned(result, target, format).map_err(to_napi_error)?;
+    let outputs = outputs
+        .into_iter()
+        .map(|output| {
+            let text = String::from_utf8(output.bytes).map_err(|err| {
+                napi::Error::from_reason(format!("output is not valid UTF-8: {err}"))
+            })?;
+            Ok(ConvertStringOutput {
+                behavior: output.behavior.as_str().to_string(),
+                count: output.count as u32,
+                text,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(ConvertStringResult {
+        outputs,
+        skipped: map_skipped(skipped),
+    })
 }
 
 fn map_skipped(skipped: Vec<rule_converter::SkippedRule>) -> Vec<SkippedRule> {
