@@ -95,7 +95,7 @@ impl RuleSet {
         let mut rules = Vec::new();
         if !mixed_rules.is_empty() {
             for rule in mixed_rules.iter() {
-                if let Some(rule) = Rule::from_classical(rule) {
+                if let Some(rule) = Rule::from_classical_with_behavior(rule, _behavior) {
                     rules.push(rule);
                 }
             }
@@ -103,6 +103,9 @@ impl RuleSet {
 
         if rules.is_empty() {
             for output in outputs {
+                if !rule_set_output_matches_behavior(output, _behavior) {
+                    continue;
+                }
                 match output {
                     RuleSetOutput::Domain(domain) => {
                         let mut rule = Rule::default();
@@ -148,6 +151,22 @@ impl RuleSet {
 
     pub fn count(&self) -> usize {
         self.rules.iter().map(Rule::item_count).sum()
+    }
+
+    pub fn has_domain_rules(&self) -> bool {
+        self.rules.iter().any(Rule::has_domain_items)
+    }
+
+    pub fn has_ip_rules(&self) -> bool {
+        self.rules.iter().any(Rule::has_ip_items)
+    }
+
+    pub fn keep_behavior(&mut self, behavior: BehaviorMode) {
+        match behavior {
+            BehaviorMode::Domain => self.rules.retain(Rule::has_domain_items),
+            BehaviorMode::Ipcidr => self.rules.retain(Rule::has_ip_items),
+            BehaviorMode::Auto | BehaviorMode::Classical => {}
+        }
     }
 }
 
@@ -308,6 +327,41 @@ impl RuleStore {
         self.ip_cidr.push(value.as_ref());
     }
 
+    pub fn has_domain_rules(&self) -> bool {
+        !self.domain.is_empty()
+            || !self.domain_suffix.is_empty()
+            || !self.domain_keyword.is_empty()
+            || !self.domain_regex.is_empty()
+    }
+
+    pub fn has_ip_rules(&self) -> bool {
+        !self.source_ip_cidr.is_empty() || !self.ip_cidr.is_empty()
+    }
+
+    pub fn keep_domain_rules(&mut self) {
+        self.source_ip_cidr.clear();
+        self.ip_cidr.clear();
+        self.network.clear();
+        self.source_port_range.clear();
+        self.port_range.clear();
+        self.process_name.clear();
+        self.process_path.clear();
+        self.process_path_regex.clear();
+    }
+
+    pub fn keep_ip_rules(&mut self) {
+        self.domain.clear();
+        self.domain_suffix.clear();
+        self.domain_keyword.clear();
+        self.domain_regex.clear();
+        self.network.clear();
+        self.source_port_range.clear();
+        self.port_range.clear();
+        self.process_name.clear();
+        self.process_path.clear();
+        self.process_path_regex.clear();
+    }
+
     pub fn is_empty(&self) -> bool {
         self.count() == 0
     }
@@ -339,6 +393,12 @@ impl RuleStore {
             + usize::from(!self.process_name.is_empty())
             + usize::from(!self.process_path.is_empty())
             + usize::from(!self.process_path_regex.is_empty())
+    }
+
+    pub fn to_rule_set_with_behavior(&self, behavior: BehaviorMode) -> RuleSet {
+        let mut rule_set = self.to_rule_set();
+        rule_set.keep_behavior(behavior);
+        rule_set
     }
 
     pub fn to_rule_set(&self) -> RuleSet {
@@ -391,6 +451,10 @@ fn push_rule(rules: &mut Vec<Rule>, f: impl FnOnce(&mut Rule)) {
 
 impl Rule {
     pub fn from_classical(rule: &str) -> Option<Self> {
+        Self::from_classical_with_behavior(rule, BehaviorMode::Classical)
+    }
+
+    pub fn from_classical_with_behavior(rule: &str, behavior: BehaviorMode) -> Option<Self> {
         let parsed = ClassicalRule::parse(rule).ok()?;
         let payload = parsed.payload.unwrap_or_default();
         let mut out = Rule::default();
@@ -411,7 +475,30 @@ impl Rule {
             ClassicalKind::ProcessPathRegex => out.process_path_regex.push(payload.into()),
             _ => return None,
         }
-        Some(out)
+        if out.matches_behavior(behavior) {
+            Some(out)
+        } else {
+            None
+        }
+    }
+
+    pub fn matches_behavior(&self, behavior: BehaviorMode) -> bool {
+        match behavior {
+            BehaviorMode::Domain => self.has_domain_items(),
+            BehaviorMode::Ipcidr => self.has_ip_items(),
+            BehaviorMode::Auto | BehaviorMode::Classical => true,
+        }
+    }
+
+    fn has_domain_items(&self) -> bool {
+        !self.domain.is_empty()
+            || !self.domain_suffix.is_empty()
+            || !self.domain_keyword.is_empty()
+            || !self.domain_regex.is_empty()
+    }
+
+    fn has_ip_items(&self) -> bool {
+        !self.source_ip_cidr.is_empty() || !self.ip_cidr.is_empty()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -450,6 +537,14 @@ impl Rule {
         extend_prefixed(out, "PROCESS-PATH-REGEX", &self.process_path_regex);
         extend_prefixed(out, "PROCESS-NAME", &self.package_name);
         extend_prefixed(out, "PROCESS-NAME-REGEX", &self.package_name_regex);
+    }
+}
+
+fn rule_set_output_matches_behavior(output: &RuleSetOutput, behavior: BehaviorMode) -> bool {
+    match behavior {
+        BehaviorMode::Domain => matches!(output, RuleSetOutput::Domain(_)),
+        BehaviorMode::Ipcidr => matches!(output, RuleSetOutput::Ipcidr(_)),
+        BehaviorMode::Auto | BehaviorMode::Classical => true,
     }
 }
 

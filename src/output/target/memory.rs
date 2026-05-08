@@ -51,8 +51,11 @@ pub fn write_rule_sets_to_memory(
                 count += rule_set.count();
             }
         }
+        if count == 0 {
+            bail!("no supported rules found for the requested conversion");
+        }
         return Ok(vec![MemoryOutput {
-            behavior: Behavior::Domain,
+            behavior: behavior_to_output_behavior(behavior),
             format,
             count,
             bytes,
@@ -76,24 +79,35 @@ pub fn write_rule_sets_to_memory(
 pub fn write_owned_sing_box_rule_set_to_memory(
     sing_box_rules: RuleStore,
     format: OutputFormat,
+    behavior: BehaviorMode,
 ) -> Result<Vec<MemoryOutput>> {
     if !matches!(format, OutputFormat::Json | OutputFormat::Srs) {
         bail!("sing-box owned writer only supports `json` and `srs` formats");
     }
 
+    let rule_set = sing_box_rules.to_rule_set_with_behavior(behavior);
+    let output_behavior = sing_box_rule_set_output_behavior(&rule_set, behavior);
+    if rule_set.count() == 0 {
+        bail!("no supported rules found for the requested conversion");
+    }
+
     let mut bytes = Vec::new();
     let count = match format {
         OutputFormat::Json => {
-            let count = sing_box_rules.count();
-            sing_box::json::write_store_json(&mut bytes, &sing_box_rules)?;
+            let count = rule_set.count();
+            sing_box::json::write_json(&mut bytes, &rule_set)?;
             count
         }
-        OutputFormat::Srs => sing_box::srs::write_owned_store_srs(&mut bytes, sing_box_rules)?,
+        OutputFormat::Srs => {
+            let count = rule_set.count();
+            sing_box::srs::write_srs(&mut bytes, &rule_set)?;
+            count
+        }
         _ => unreachable!("format checked above"),
     };
 
     Ok(vec![MemoryOutput {
-        behavior: Behavior::Domain,
+        behavior: output_behavior,
         format,
         count,
         bytes,
@@ -221,41 +235,59 @@ fn write_sing_box_to_memory(
     format: OutputFormat,
     behavior: BehaviorMode,
 ) -> Result<Vec<MemoryOutput>> {
+    let rule_set = sing_box_rules
+        .map(|store| store.to_rule_set_with_behavior(behavior))
+        .unwrap_or_else(|| sing_box::RuleSet::from_outputs(outputs, mixed_rules, behavior));
+    let output_behavior = sing_box_rule_set_output_behavior(&rule_set, behavior);
+    if rule_set.count() == 0 {
+        bail!("no supported rules found for the requested conversion");
+    }
+
     let mut bytes = Vec::new();
     let count = match format {
         OutputFormat::Json => {
-            if let Some(store) = sing_box_rules {
-                let count = store.count();
-                sing_box::json::write_store_json(&mut bytes, store)?;
-                count
-            } else {
-                let rule_set = sing_box::RuleSet::from_outputs(outputs, mixed_rules, behavior);
-                let count = rule_set.count();
-                sing_box::json::write_json(&mut bytes, &rule_set)?;
-                count
-            }
+            let count = rule_set.count();
+            sing_box::json::write_json(&mut bytes, &rule_set)?;
+            count
         }
         OutputFormat::Srs => {
-            if let Some(store) = sing_box_rules {
-                sing_box::srs::write_store_srs(&mut bytes, store)?
-            } else if !mixed_rules.is_empty() {
-                sing_box::srs::write_classical_srs(&mut bytes, mixed_rules)?
-            } else {
-                let rule_set = sing_box::RuleSet::from_outputs(outputs, mixed_rules, behavior);
-                let count = rule_set.count();
-                sing_box::srs::write_srs(&mut bytes, &rule_set)?;
-                count
-            }
+            let count = rule_set.count();
+            sing_box::srs::write_srs(&mut bytes, &rule_set)?;
+            count
         }
         _ => unreachable!("sing-box format was validated before memory writing"),
     };
 
     Ok(vec![MemoryOutput {
-        behavior: Behavior::Domain,
+        behavior: output_behavior,
         format,
         count,
         bytes,
     }])
+}
+
+fn behavior_to_output_behavior(behavior: BehaviorMode) -> Behavior {
+    match behavior {
+        BehaviorMode::Ipcidr => Behavior::Ipcidr,
+        BehaviorMode::Auto | BehaviorMode::Domain | BehaviorMode::Classical => Behavior::Domain,
+    }
+}
+
+fn sing_box_rule_set_output_behavior(
+    rule_set: &sing_box::RuleSet,
+    behavior: BehaviorMode,
+) -> Behavior {
+    match behavior {
+        BehaviorMode::Ipcidr => Behavior::Ipcidr,
+        BehaviorMode::Domain => Behavior::Domain,
+        BehaviorMode::Auto | BehaviorMode::Classical => {
+            if rule_set.has_ip_rules() && !rule_set.has_domain_rules() {
+                Behavior::Ipcidr
+            } else {
+                Behavior::Domain
+            }
+        }
+    }
 }
 
 fn write_general_rule_set(

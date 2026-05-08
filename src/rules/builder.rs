@@ -363,7 +363,10 @@ impl ConversionBuilder {
                 }
             }
         } else {
-            self.push_sing_box_ip_rule(rule);
+            match parse_prefix(rule) {
+                Ok(_) => self.push_sing_box_ip_rule(rule),
+                Err(err) => self.skipped.push(SkippedRule::new(rule, err.to_string())),
+            }
             Ok(())
         }
     }

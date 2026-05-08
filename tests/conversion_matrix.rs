@@ -498,3 +498,78 @@ fn general_ruleset_classical_outputs_typed_rules_from_ip_set_input() {
     );
     fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn sing_box_json_ip_behavior_rejects_domain_only_input() {
+    let result = convert_payload(
+        "payload:\n  - +.0x0.st\n",
+        options(
+            RuleTarget::Mihomo,
+            InputFormat::Yaml,
+            InputBehaviorMode::Domain,
+            RuleTarget::SingBox,
+            OutputFormat::Json,
+            BehaviorMode::Ipcidr,
+        ),
+    );
+    match result {
+        Ok(_) => panic!("ip behavior must not accept domain-only input"),
+        Err(err) => assert!(err.to_string().contains("no supported rules")),
+    }
+}
+
+#[test]
+fn sing_box_json_domain_behavior_filters_mixed_input() {
+    let dir = temp_dir();
+    let output = dir.join("rules.json");
+    let result = convert_payload(
+        "DOMAIN-SUFFIX,example.com\nIP-CIDR,192.0.2.0/24\n",
+        options(
+            RuleTarget::General,
+            InputFormat::Text,
+            InputBehaviorMode::Classical,
+            RuleTarget::SingBox,
+            OutputFormat::Json,
+            BehaviorMode::Domain,
+        ),
+    )
+    .unwrap();
+
+    write_outputs_as(&result, &output, RuleTarget::SingBox, OutputFormat::Json).unwrap();
+    let json: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&output).unwrap()).unwrap();
+    let rules = json["rules"].as_array().unwrap();
+
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0]["domain_suffix"][0], "example.com");
+    assert!(rules[0].get("ip_cidr").is_none());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn sing_box_json_ip_behavior_filters_mixed_input() {
+    let dir = temp_dir();
+    let output = dir.join("rules.json");
+    let result = convert_payload(
+        "DOMAIN-SUFFIX,example.com\nIP-CIDR,192.0.2.0/24\n",
+        options(
+            RuleTarget::General,
+            InputFormat::Text,
+            InputBehaviorMode::Classical,
+            RuleTarget::SingBox,
+            OutputFormat::Json,
+            BehaviorMode::Ipcidr,
+        ),
+    )
+    .unwrap();
+
+    write_outputs_as(&result, &output, RuleTarget::SingBox, OutputFormat::Json).unwrap();
+    let json: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&output).unwrap()).unwrap();
+    let rules = json["rules"].as_array().unwrap();
+
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0]["ip_cidr"][0], "192.0.2.0/24");
+    assert!(rules[0].get("domain_suffix").is_none());
+    fs::remove_dir_all(dir).unwrap();
+}

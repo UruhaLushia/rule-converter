@@ -268,8 +268,15 @@ fn write_sing_box_to_path(
     format: OutputFormat,
     behavior: BehaviorMode,
 ) -> Result<Vec<OutputFile>> {
+    let rule_set = sing_box_rules
+        .map(|store| store.to_rule_set_with_behavior(behavior))
+        .unwrap_or_else(|| sing_box::RuleSet::from_outputs(outputs, mixed_rules, behavior));
+    let output_behavior = rule_set_output_behavior(&rule_set, behavior);
+    if rule_set.count() == 0 {
+        bail!("no supported rules found for the requested conversion");
+    }
     let path =
-        resolve_output_path_for_target(base, Behavior::Domain, false, format, RuleTarget::SingBox);
+        resolve_output_path_for_target(base, output_behavior, false, format, RuleTarget::SingBox);
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -283,34 +290,24 @@ fn write_sing_box_to_path(
     let mut file = BufWriter::with_capacity(1024 * 1024, file);
     let count = match format {
         OutputFormat::Json => {
-            if let Some(store) = sing_box_rules {
-                let count = store.count();
-                sing_box::json::write_store_json(&mut file, store)?;
-                count
-            } else {
-                let rule_set = sing_box::RuleSet::from_outputs(outputs, mixed_rules, behavior);
-                let count = rule_set.count();
-                sing_box::json::write_json(&mut file, &rule_set)?;
-                count
-            }
+            let count = rule_set.count();
+            sing_box::json::write_json(&mut file, &rule_set)?;
+            count
         }
         OutputFormat::Srs => {
-            if let Some(store) = sing_box_rules {
-                sing_box::srs::write_store_srs(&mut file, store)?
-            } else if !mixed_rules.is_empty() {
-                sing_box::srs::write_classical_srs(&mut file, mixed_rules)?
-            } else {
-                let rule_set = sing_box::RuleSet::from_outputs(outputs, mixed_rules, behavior);
-                let count = rule_set.count();
-                sing_box::srs::write_srs(&mut file, &rule_set)?;
-                count
-            }
+            let count = rule_set.count();
+            sing_box::srs::write_srs(&mut file, &rule_set)?;
+            count
         }
         _ => unreachable!("sing-box writer only handles JSON and SRS"),
     };
 
+    if count == 0 {
+        bail!("no supported rules found for the requested conversion");
+    }
+
     Ok(vec![OutputFile {
-        behavior: Behavior::Domain,
+        behavior: output_behavior,
         format,
         count,
         path,
@@ -323,14 +320,24 @@ fn write_generic_text_to_path(
     behavior: BehaviorMode,
     format: OutputFormat,
 ) -> Result<Vec<OutputFile>> {
+    let output_behavior = behavior_to_output_behavior(behavior);
     let path =
-        resolve_output_path_for_target(base, Behavior::Domain, false, format, RuleTarget::General);
+        resolve_output_path_for_target(base, output_behavior, false, format, RuleTarget::General);
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
     {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create output directory {}", parent.display()))?;
+    }
+
+    let count = outputs
+        .iter()
+        .filter(|rule_set| should_write_general_rule_set(rule_set, behavior, format))
+        .map(RuleSetOutput::count)
+        .sum::<usize>();
+    if count == 0 {
+        bail!("no supported rules found for the requested conversion");
     }
 
     let file = fs::File::create(&path)
@@ -353,6 +360,27 @@ fn write_generic_text_to_path(
             path: path.clone(),
         })
         .collect())
+}
+
+fn behavior_to_output_behavior(behavior: BehaviorMode) -> Behavior {
+    match behavior {
+        BehaviorMode::Ipcidr => Behavior::Ipcidr,
+        BehaviorMode::Auto | BehaviorMode::Domain | BehaviorMode::Classical => Behavior::Domain,
+    }
+}
+
+fn rule_set_output_behavior(rule_set: &sing_box::RuleSet, behavior: BehaviorMode) -> Behavior {
+    match behavior {
+        BehaviorMode::Ipcidr => Behavior::Ipcidr,
+        BehaviorMode::Domain => Behavior::Domain,
+        BehaviorMode::Auto | BehaviorMode::Classical => {
+            if rule_set.has_ip_rules() && !rule_set.has_domain_rules() {
+                Behavior::Ipcidr
+            } else {
+                Behavior::Domain
+            }
+        }
+    }
 }
 
 fn write_generic_text(
@@ -398,9 +426,12 @@ pub fn write_owned_sing_box_rule_set(
     sing_box_rules: RuleStore,
     target: OutputTarget<'_>,
     format: OutputFormat,
+    behavior: BehaviorMode,
 ) -> Result<Vec<OutputFile>> {
     match target {
-        OutputTarget::FilePath(base) => write_owned_sing_box_to_path(sing_box_rules, base, format),
+        OutputTarget::FilePath(base) => {
+            write_owned_sing_box_to_path(sing_box_rules, base, format, behavior)
+        }
     }
 }
 
@@ -408,13 +439,19 @@ fn write_owned_sing_box_to_path(
     sing_box_rules: RuleStore,
     base: &Path,
     format: OutputFormat,
+    behavior: BehaviorMode,
 ) -> Result<Vec<OutputFile>> {
     if !matches!(format, OutputFormat::Json | OutputFormat::Srs) {
         bail!("sing-box owned writer only supports `json` and `srs` formats");
     }
 
+    let rule_set = sing_box_rules.to_rule_set_with_behavior(behavior);
+    let output_behavior = rule_set_output_behavior(&rule_set, behavior);
+    if rule_set.count() == 0 {
+        bail!("no supported rules found for the requested conversion");
+    }
     let path =
-        resolve_output_path_for_target(base, Behavior::Domain, false, format, RuleTarget::SingBox);
+        resolve_output_path_for_target(base, output_behavior, false, format, RuleTarget::SingBox);
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -428,16 +465,20 @@ fn write_owned_sing_box_to_path(
     let mut file = BufWriter::with_capacity(1024 * 1024, file);
     let count = match format {
         OutputFormat::Json => {
-            let count = sing_box_rules.count();
-            sing_box::json::write_store_json(&mut file, &sing_box_rules)?;
+            let count = rule_set.count();
+            sing_box::json::write_json(&mut file, &rule_set)?;
             count
         }
-        OutputFormat::Srs => sing_box::srs::write_owned_store_srs(&mut file, sing_box_rules)?,
+        OutputFormat::Srs => {
+            let count = rule_set.count();
+            sing_box::srs::write_srs(&mut file, &rule_set)?;
+            count
+        }
         _ => unreachable!("format checked above"),
     };
 
     Ok(vec![OutputFile {
-        behavior: Behavior::Domain,
+        behavior: output_behavior,
         format,
         count,
         path,

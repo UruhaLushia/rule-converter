@@ -48,12 +48,17 @@ impl Converter {
             DomainSyntax::Mihomo
         };
 
-        let mode = match input_behavior {
-            InputBehaviorMode::Ipcidr => ConversionMode::SingBoxIpcidr,
-            InputBehaviorMode::Domain => ConversionMode::SingBoxDomain(domain_syntax),
-            InputBehaviorMode::Auto | InputBehaviorMode::Classical => {
-                ConversionMode::SingBoxAuto(domain_syntax)
-            }
+        let mode = match output_behavior {
+            BehaviorMode::Domain => ConversionMode::SingBoxDomain(domain_syntax),
+            BehaviorMode::Ipcidr => ConversionMode::SingBoxIpcidr,
+            BehaviorMode::Classical => ConversionMode::SingBoxAuto(domain_syntax),
+            BehaviorMode::Auto => match input_behavior {
+                InputBehaviorMode::Ipcidr => ConversionMode::SingBoxIpcidr,
+                InputBehaviorMode::Domain => ConversionMode::SingBoxDomain(domain_syntax),
+                InputBehaviorMode::Auto | InputBehaviorMode::Classical => {
+                    ConversionMode::SingBoxAuto(domain_syntax)
+                }
+            },
         };
 
         Self {

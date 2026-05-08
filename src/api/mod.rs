@@ -329,6 +329,7 @@ pub fn write_outputs_as_owned(
 ) -> Result<(Vec<OutputFile>, Vec<SkippedRule>)> {
     let skipped = result.skipped;
     let no_resolve = result.no_resolve;
+    let output_behavior = result.output_behavior;
     if target == RuleTarget::SingBox
         && matches!(format, OutputFormat::Json | OutputFormat::Srs)
         && let Some(sing_box_rules) = result.sing_box_rules
@@ -337,6 +338,7 @@ pub fn write_outputs_as_owned(
             sing_box_rules,
             OutputTarget::FilePath(output.as_ref()),
             format,
+            output_behavior,
         )?;
         return Ok((files, skipped));
     }
@@ -348,7 +350,7 @@ pub fn write_outputs_as_owned(
         OutputTarget::FilePath(output.as_ref()),
         target,
         format,
-        result.output_behavior,
+        output_behavior,
         no_resolve,
     )?;
     Ok((files, skipped))
@@ -383,11 +385,13 @@ pub fn write_outputs_as_to_memory_owned(
 ) -> Result<(Vec<MemoryOutput>, Vec<SkippedRule>)> {
     let skipped = result.skipped;
     let no_resolve = result.no_resolve;
+    let output_behavior = result.output_behavior;
     if target == RuleTarget::SingBox
         && matches!(format, OutputFormat::Json | OutputFormat::Srs)
         && let Some(sing_box_rules) = result.sing_box_rules
     {
-        let outputs = write_owned_sing_box_rule_set_to_memory(sing_box_rules, format)?;
+        let outputs =
+            write_owned_sing_box_rule_set_to_memory(sing_box_rules, format, output_behavior)?;
         return Ok((outputs, skipped));
     }
 
@@ -397,7 +401,7 @@ pub fn write_outputs_as_to_memory_owned(
         result.sing_box_rules.as_ref(),
         target,
         format,
-        result.output_behavior,
+        output_behavior,
         no_resolve,
     )?;
     Ok((outputs, skipped))
