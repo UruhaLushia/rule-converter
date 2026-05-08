@@ -2,7 +2,9 @@
   "name": "@uruhalushia/rule-converter-wasm",
   "version": "0.1.0",
   "type": "module",
-  "files": ["pkg"],
+  "files": [
+    "pkg"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/UruhaLushia/rule-converter.git"
