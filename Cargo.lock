@@ -568,7 +568,7 @@ dependencies = [
 
 [[package]]
 name = "rule-converter"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -584,7 +584,7 @@ dependencies = [
 
 [[package]]
 name = "rule-converter-napi"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "napi",
@@ -595,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "rule-converter-wasm"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "js-sys",
  "rule-converter",
