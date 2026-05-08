@@ -306,6 +306,19 @@ jobs:
       - name: Build WASM package
         run: pnpm --dir wasm build:bundler
 
+      - name: Copy WASM npm metadata
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const source = JSON.parse(fs.readFileSync('wasm/package.json', 'utf8'))
+          const targetFile = 'wasm/pkg/package.json'
+          const target = JSON.parse(fs.readFileSync(targetFile, 'utf8'))
+          for (const key of ['repository', 'homepage', 'bugs', 'license']) {
+            target[key] = source[key]
+          }
+          fs.writeFileSync(targetFile, `${JSON.stringify(target, null, 2)}\n`)
+          NODE
+
       - name: Pack WASM npm package
         shell: bash
         run: |
