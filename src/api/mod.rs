@@ -85,12 +85,16 @@ fn resolve_output_behavior(
     }
 
     match (options.output_target, options.output_format, input_behavior) {
-        (RuleTarget::Mihomo, OutputFormat::Mrs, InputBehaviorMode::Domain) => {
-            Ok(BehaviorMode::Domain)
-        }
-        (RuleTarget::Mihomo, OutputFormat::Mrs, InputBehaviorMode::Ipcidr) => {
-            Ok(BehaviorMode::Ipcidr)
-        }
+        (
+            RuleTarget::Mihomo,
+            OutputFormat::Mrs | OutputFormat::Text | OutputFormat::Yaml,
+            InputBehaviorMode::Domain,
+        ) => Ok(BehaviorMode::Domain),
+        (
+            RuleTarget::Mihomo,
+            OutputFormat::Mrs | OutputFormat::Text | OutputFormat::Yaml,
+            InputBehaviorMode::Ipcidr,
+        ) => Ok(BehaviorMode::Ipcidr),
         (RuleTarget::Mihomo, OutputFormat::Mrs, _) => bail!(
             "mihomo MRS output needs explicit output behavior for mixed/classical input; use domain or ip"
         ),
