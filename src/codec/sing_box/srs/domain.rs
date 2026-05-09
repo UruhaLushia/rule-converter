@@ -64,6 +64,20 @@ pub(super) fn write_domain_matcher_list<W: Write>(
     write_domain_matcher_keys(writer, &mut keys)
 }
 
+pub(super) fn write_owned_domain_matcher_list<W: Write>(
+    writer: &mut W,
+    domains: RuleList,
+    domain_suffix: RuleList,
+) -> Result<()> {
+    let suffix_bytes = domain_suffix.iter().map(|value| value.len() + 1).sum();
+    let suffix_len = domain_suffix.len();
+    let mut keys = DomainMatcherKeys::from_exact_rule_list(domains, suffix_len, suffix_bytes)?;
+    for suffix in domain_suffix.iter() {
+        keys.push_suffix(suffix)?;
+    }
+    write_domain_matcher_keys(writer, &mut keys)
+}
+
 pub(super) fn push_domain_matcher_list_keys(
     keys: &mut DomainMatcherKeys,
     domains: &RuleList,
@@ -111,6 +125,26 @@ impl DomainMatcherKeys {
             keys: Vec::with_capacity(capacity),
             bytes: Vec::with_capacity(byte_capacity),
         }
+    }
+
+    pub(super) fn from_exact_rule_list(
+        domains: RuleList,
+        extra_keys: usize,
+        extra_bytes: usize,
+    ) -> Result<Self> {
+        let (mut bytes, items) = domains.into_parts();
+        bytes.reserve(extra_bytes);
+        let mut keys = Vec::with_capacity(items.len() + extra_keys);
+        for (offset, len) in items {
+            let start = offset as usize;
+            let end = start + len as usize;
+            if end > bytes.len() {
+                return Err(anyhow!("invalid sing-box domain rule list"));
+            }
+            bytes[start..end].reverse();
+            keys.push(KeyRef { offset, len });
+        }
+        Ok(Self { keys, bytes })
     }
 
     pub(super) fn push_exact(&mut self, value: &str) -> Result<()> {

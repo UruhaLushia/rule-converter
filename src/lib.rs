@@ -8,10 +8,10 @@ mod rules;
 mod target;
 
 pub use api::{
-    ConvertOptions, ConvertResult, SkippedRule, convert_file, convert_files, convert_payload,
-    convert_rules, default_output_behavior, write_outputs, write_outputs_as,
-    write_outputs_as_owned, write_outputs_as_to_memory_owned, write_outputs_owned,
-    write_outputs_to_memory, write_outputs_to_memory_owned,
+    ConvertOptions, ConvertResult, SkippedRule, convert_file, convert_files,
+    convert_files_to_path_streaming, convert_payload, convert_rules, default_output_behavior,
+    write_outputs, write_outputs_as, write_outputs_as_owned, write_outputs_as_to_memory_owned,
+    write_outputs_owned, write_outputs_to_memory, write_outputs_to_memory_owned,
 };
 #[cfg(feature = "config")]
 pub use config::{ConfigJob, load_config};

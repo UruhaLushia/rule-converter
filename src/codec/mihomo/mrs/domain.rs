@@ -15,6 +15,11 @@ pub struct DomainSetBuilder {
 }
 
 impl DomainSetBuilder {
+    pub fn reserve(&mut self, keys: usize, bytes: usize) {
+        self.keys.reserve(keys);
+        self.bytes.reserve(bytes);
+    }
+
     pub fn insert(&mut self, rule: &str) -> Result<()> {
         normalize_domain_rule(rule, |domain| {
             self.has_suffix |= domain.starts_with("+.") || domain.starts_with('.');

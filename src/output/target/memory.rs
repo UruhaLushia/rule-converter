@@ -96,23 +96,17 @@ pub fn write_owned_sing_box_rule_set_to_memory(
         bail!("sing-box owned writer only supports `json` and `srs` formats");
     }
 
-    let rule_set = sing_box_rules.to_rule_set_with_behavior(behavior);
-    let output_behavior = sing_box_rule_set_output_behavior(&rule_set, behavior);
-    if rule_set.count() == 0 {
+    let output_behavior = sing_box_rule_store_output_behavior(&sing_box_rules, behavior);
+    let count = sing_box_rules.count();
+    if count == 0 {
         bail!("no supported rules found for the requested conversion");
     }
 
     let mut bytes = Vec::new();
-    let count = match format {
-        OutputFormat::Json => {
-            let count = rule_set.count();
-            sing_box::json::write_json(&mut bytes, &rule_set)?;
-            count
-        }
+    match format {
+        OutputFormat::Json => sing_box::json::write_store_json(&mut bytes, &sing_box_rules)?,
         OutputFormat::Srs => {
-            let count = rule_set.count();
-            sing_box::srs::write_srs(&mut bytes, &rule_set)?;
-            count
+            sing_box::srs::write_owned_store_srs(&mut bytes, sing_box_rules)?;
         }
         _ => unreachable!("format checked above"),
     };
@@ -301,6 +295,20 @@ fn sing_box_rule_set_output_behavior(
         BehaviorMode::Domain => Behavior::Domain,
         BehaviorMode::Auto | BehaviorMode::Classical => {
             if rule_set.has_ip_rules() && !rule_set.has_domain_rules() {
+                Behavior::Ipcidr
+            } else {
+                Behavior::Domain
+            }
+        }
+    }
+}
+
+fn sing_box_rule_store_output_behavior(rule_store: &RuleStore, behavior: BehaviorMode) -> Behavior {
+    match behavior {
+        BehaviorMode::Ipcidr => Behavior::Ipcidr,
+        BehaviorMode::Domain => Behavior::Domain,
+        BehaviorMode::Auto | BehaviorMode::Classical => {
+            if rule_store.has_ip_rules() && !rule_store.has_domain_rules() {
                 Behavior::Ipcidr
             } else {
                 Behavior::Domain

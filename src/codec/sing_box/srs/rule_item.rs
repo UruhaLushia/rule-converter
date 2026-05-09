@@ -8,9 +8,8 @@ use crate::codec::sing_box::{Rule, RuleStore};
 use super::binary::{read_byte, read_uvarint, write_uvarint};
 use super::constants::*;
 use super::domain::{
-    DomainMatcherKeys, domain_matcher_list_byte_len, push_domain_matcher_list_keys,
-    read_domain_matcher, write_domain_matcher, write_domain_matcher_keys,
-    write_domain_matcher_list,
+    read_domain_matcher, write_domain_matcher, write_domain_matcher_list,
+    write_owned_domain_matcher_list,
 };
 use super::ip_set::{read_ip_set, write_ip_set_item, write_ip_set_item_list};
 
@@ -125,34 +124,37 @@ pub(super) fn write_store_rules<W: Write>(writer: &mut W, store: &RuleStore) -> 
     Ok(())
 }
 
-pub(super) fn write_owned_store_rules<W: Write>(
-    writer: &mut W,
-    mut store: RuleStore,
-) -> Result<()> {
-    if !store.domain.is_empty() || !store.domain_suffix.is_empty() {
+pub(super) fn write_owned_store_rules<W: Write>(writer: &mut W, store: RuleStore) -> Result<()> {
+    let RuleStore {
+        domain,
+        domain_suffix,
+        domain_keyword,
+        domain_regex,
+        source_ip_cidr,
+        ip_cidr,
+        network,
+        source_port_range,
+        port_range,
+        process_name,
+        process_path,
+        process_path_regex,
+    } = store;
+
+    if !domain.is_empty() || !domain_suffix.is_empty() {
         writer.write_all(&[RULE_DEFAULT, ITEM_DOMAIN])?;
-        let mut keys = DomainMatcherKeys::with_byte_capacity(
-            store.domain.len() + store.domain_suffix.len(),
-            domain_matcher_list_byte_len(&store.domain, &store.domain_suffix),
-        );
-        push_domain_matcher_list_keys(&mut keys, &store.domain, &store.domain_suffix)?;
-        store.domain.clear();
-        store.domain.shrink_to_fit();
-        store.domain_suffix.clear();
-        store.domain_suffix.shrink_to_fit();
-        write_domain_matcher_keys(writer, &mut keys)?;
+        write_owned_domain_matcher_list(writer, domain, domain_suffix)?;
         writer.write_all(&[ITEM_FINAL, 0])?;
     }
-    write_string_owned_store_rule(writer, ITEM_DOMAIN_KEYWORD, store.domain_keyword)?;
-    write_string_owned_store_rule(writer, ITEM_DOMAIN_REGEX, store.domain_regex)?;
-    write_ip_owned_store_rule(writer, ITEM_SOURCE_IP_CIDR, store.source_ip_cidr)?;
-    write_ip_owned_store_rule(writer, ITEM_IP_CIDR, store.ip_cidr)?;
-    write_string_owned_store_rule(writer, ITEM_NETWORK, store.network)?;
-    write_string_owned_store_rule(writer, ITEM_SOURCE_PORT_RANGE, store.source_port_range)?;
-    write_string_owned_store_rule(writer, ITEM_PORT_RANGE, store.port_range)?;
-    write_string_owned_store_rule(writer, ITEM_PROCESS_NAME, store.process_name)?;
-    write_string_owned_store_rule(writer, ITEM_PROCESS_PATH, store.process_path)?;
-    write_string_owned_store_rule(writer, ITEM_PROCESS_PATH_REGEX, store.process_path_regex)?;
+    write_string_owned_store_rule(writer, ITEM_DOMAIN_KEYWORD, domain_keyword)?;
+    write_string_owned_store_rule(writer, ITEM_DOMAIN_REGEX, domain_regex)?;
+    write_ip_owned_store_rule(writer, ITEM_SOURCE_IP_CIDR, source_ip_cidr)?;
+    write_ip_owned_store_rule(writer, ITEM_IP_CIDR, ip_cidr)?;
+    write_string_owned_store_rule(writer, ITEM_NETWORK, network)?;
+    write_string_owned_store_rule(writer, ITEM_SOURCE_PORT_RANGE, source_port_range)?;
+    write_string_owned_store_rule(writer, ITEM_PORT_RANGE, port_range)?;
+    write_string_owned_store_rule(writer, ITEM_PROCESS_NAME, process_name)?;
+    write_string_owned_store_rule(writer, ITEM_PROCESS_PATH, process_path)?;
+    write_string_owned_store_rule(writer, ITEM_PROCESS_PATH_REGEX, process_path_regex)?;
     Ok(())
 }
 

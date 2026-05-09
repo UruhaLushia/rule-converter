@@ -61,6 +61,57 @@ impl ConversionBuilder {
         }
     }
 
+    pub fn reserve(&mut self, items: usize, bytes: usize) {
+        if items == 0 && bytes == 0 {
+            return;
+        }
+
+        if self.keep_mixed_rules {
+            self.mixed_rules.reserve(items, bytes);
+        }
+
+        match self.mode {
+            ConversionMode::DomainSet
+            | ConversionMode::DomainMihomo
+            | ConversionMode::AutoGeneric
+            | ConversionMode::AutoMihomo
+            | ConversionMode::ClassicalAuto
+                if self.build_rule_sets =>
+            {
+                self.domains.reserve(items, bytes);
+            }
+            ConversionMode::Ipcidr if self.build_rule_sets => {
+                self.cidrs.reserve(items);
+            }
+            ConversionMode::ClassicalOutput if self.build_rule_sets => {
+                self.domains.reserve(items / 2, bytes / 2);
+                self.cidrs.reserve(items / 8);
+            }
+            ConversionMode::SingBoxDomain(_) => {
+                if let Some(store) = &mut self.sing_box_rules {
+                    store.reserve_domain(items, bytes);
+                }
+            }
+            ConversionMode::SingBoxIpcidr => {
+                if let Some(store) = &mut self.sing_box_rules {
+                    store.reserve_ip_cidr(items, bytes);
+                }
+            }
+            ConversionMode::SingBoxAuto(_) => {
+                if let Some(store) = &mut self.sing_box_rules {
+                    store.reserve_mixed(items, bytes);
+                }
+            }
+            ConversionMode::DomainSet
+            | ConversionMode::DomainMihomo
+            | ConversionMode::Ipcidr
+            | ConversionMode::AutoGeneric
+            | ConversionMode::AutoMihomo
+            | ConversionMode::ClassicalAuto
+            | ConversionMode::ClassicalOutput => {}
+        }
+    }
+
     pub fn push(&mut self, rule: &str) -> Result<()> {
         if classical_has_no_resolve(rule) {
             self.no_resolve = true;

@@ -149,6 +149,28 @@ impl RuleSet {
         out
     }
 
+    pub fn for_each_classical_rule(
+        &self,
+        mut f: impl FnMut(&str) -> anyhow::Result<()>,
+    ) -> anyhow::Result<usize> {
+        let mut count = 0usize;
+        for rule in &self.rules {
+            count += rule.for_each_classical_rule(&mut f)?;
+        }
+        Ok(count)
+    }
+
+    pub fn into_each_classical_rule(
+        self,
+        mut f: impl FnMut(&str) -> anyhow::Result<()>,
+    ) -> anyhow::Result<usize> {
+        let mut count = 0usize;
+        for rule in self.rules {
+            count += rule.into_each_classical_rule(&mut f)?;
+        }
+        Ok(count)
+    }
+
     pub fn count(&self) -> usize {
         self.rules.iter().map(Rule::item_count).sum()
     }
@@ -171,6 +193,11 @@ impl RuleSet {
 }
 
 impl RuleList {
+    pub(crate) fn reserve(&mut self, items: usize, bytes: usize) {
+        self.items.reserve(items);
+        self.bytes.reserve(bytes);
+    }
+
     pub(crate) fn push(&mut self, value: &str) {
         let offset = self.bytes.len();
         let len = value.len();
@@ -198,11 +225,6 @@ impl RuleList {
         self.bytes.clear();
     }
 
-    pub(crate) fn shrink_to_fit(&mut self) {
-        self.items.shrink_to_fit();
-        self.bytes.shrink_to_fit();
-    }
-
     pub(crate) fn iter(&self) -> RuleListIter<'_> {
         RuleListIter {
             list: self,
@@ -212,6 +234,15 @@ impl RuleList {
 
     pub(crate) fn to_strings(&self) -> Vec<String> {
         self.iter().map(str::to_string).collect()
+    }
+
+    pub(crate) fn into_parts(self) -> (Vec<u8>, Vec<(u32, u32)>) {
+        let items = self
+            .items
+            .into_iter()
+            .map(|item| (item.offset, item.len))
+            .collect();
+        (self.bytes, items)
     }
 }
 
@@ -246,6 +277,37 @@ impl Serialize for RuleList {
 }
 
 impl RuleStore {
+    pub fn reserve_domain(&mut self, items: usize, bytes: usize) {
+        self.domain.reserve(items, bytes);
+        self.domain_suffix.reserve(items / 8, bytes / 8);
+        self.domain_keyword.reserve(items / 32, bytes / 32);
+        self.domain_regex.reserve(items / 64, bytes / 64);
+    }
+
+    pub fn reserve_ip_cidr(&mut self, items: usize, bytes: usize) {
+        self.ip_cidr.reserve(items, bytes);
+        self.source_ip_cidr.reserve(items / 16, bytes / 16);
+    }
+
+    pub fn reserve_mixed(&mut self, items: usize, bytes: usize) {
+        let item_hint = (items / 8).max(1);
+        let byte_hint = (bytes / 8).max(1);
+        self.domain.reserve(item_hint, byte_hint);
+        self.domain_suffix.reserve(item_hint, byte_hint);
+        self.domain_keyword.reserve(item_hint / 4, byte_hint / 4);
+        self.domain_regex.reserve(item_hint / 8, byte_hint / 8);
+        self.source_ip_cidr.reserve(item_hint / 8, byte_hint / 8);
+        self.ip_cidr.reserve(item_hint / 8, byte_hint / 8);
+        self.network.reserve(item_hint / 16, byte_hint / 16);
+        self.source_port_range
+            .reserve(item_hint / 16, byte_hint / 16);
+        self.port_range.reserve(item_hint / 16, byte_hint / 16);
+        self.process_name.reserve(item_hint / 16, byte_hint / 16);
+        self.process_path.reserve(item_hint / 16, byte_hint / 16);
+        self.process_path_regex
+            .reserve(item_hint / 16, byte_hint / 16);
+    }
+
     pub fn push_classical(&mut self, rule: &str) -> bool {
         if self.push_fast_classical(rule) {
             return true;
@@ -538,6 +600,79 @@ impl Rule {
         extend_prefixed(out, "PROCESS-NAME", &self.package_name);
         extend_prefixed(out, "PROCESS-NAME-REGEX", &self.package_name_regex);
     }
+
+    fn for_each_classical_rule(
+        &self,
+        f: &mut impl FnMut(&str) -> anyhow::Result<()>,
+    ) -> anyhow::Result<usize> {
+        let mut count = 0usize;
+        extend_prefixed_each(&mut count, f, "DOMAIN", &self.domain)?;
+        extend_prefixed_each(&mut count, f, "DOMAIN-SUFFIX", &self.domain_suffix)?;
+        extend_prefixed_each(&mut count, f, "DOMAIN-KEYWORD", &self.domain_keyword)?;
+        extend_prefixed_each(&mut count, f, "DOMAIN-REGEX", &self.domain_regex)?;
+        extend_prefixed_each(&mut count, f, "SRC-IP-CIDR", &self.source_ip_cidr)?;
+        extend_prefixed_each(&mut count, f, "IP-CIDR", &self.ip_cidr)?;
+        extend_prefixed_each(&mut count, f, "NETWORK", &self.network)?;
+        extend_prefixed_each(&mut count, f, "SRC-PORT", &self.source_port_range)?;
+        extend_prefixed_each(&mut count, f, "DST-PORT", &self.port_range)?;
+        extend_prefixed_each(&mut count, f, "PROCESS-NAME", &self.process_name)?;
+        extend_prefixed_each(&mut count, f, "PROCESS-PATH", &self.process_path)?;
+        extend_prefixed_each(
+            &mut count,
+            f,
+            "PROCESS-PATH-REGEX",
+            &self.process_path_regex,
+        )?;
+        extend_prefixed_each(&mut count, f, "PROCESS-NAME", &self.package_name)?;
+        extend_prefixed_each(
+            &mut count,
+            f,
+            "PROCESS-NAME-REGEX",
+            &self.package_name_regex,
+        )?;
+        Ok(count)
+    }
+
+    pub(crate) fn into_each_classical_rule(
+        self,
+        f: &mut impl FnMut(&str) -> anyhow::Result<()>,
+    ) -> anyhow::Result<usize> {
+        let Rule {
+            rule_type: _,
+            domain,
+            domain_suffix,
+            domain_keyword,
+            domain_regex,
+            source_ip_cidr,
+            ip_cidr,
+            network,
+            source_port_range,
+            port_range,
+            process_name,
+            process_path,
+            process_path_regex,
+            package_name,
+            package_name_regex,
+            invert: _,
+        } = self;
+
+        let mut count = 0usize;
+        extend_prefixed_into_each(&mut count, f, "DOMAIN", domain)?;
+        extend_prefixed_into_each(&mut count, f, "DOMAIN-SUFFIX", domain_suffix)?;
+        extend_prefixed_into_each(&mut count, f, "DOMAIN-KEYWORD", domain_keyword)?;
+        extend_prefixed_into_each(&mut count, f, "DOMAIN-REGEX", domain_regex)?;
+        extend_prefixed_into_each(&mut count, f, "SRC-IP-CIDR", source_ip_cidr)?;
+        extend_prefixed_into_each(&mut count, f, "IP-CIDR", ip_cidr)?;
+        extend_prefixed_into_each(&mut count, f, "NETWORK", network)?;
+        extend_prefixed_into_each(&mut count, f, "SRC-PORT", source_port_range)?;
+        extend_prefixed_into_each(&mut count, f, "DST-PORT", port_range)?;
+        extend_prefixed_into_each(&mut count, f, "PROCESS-NAME", process_name)?;
+        extend_prefixed_into_each(&mut count, f, "PROCESS-PATH", process_path)?;
+        extend_prefixed_into_each(&mut count, f, "PROCESS-PATH-REGEX", process_path_regex)?;
+        extend_prefixed_into_each(&mut count, f, "PROCESS-NAME", package_name)?;
+        extend_prefixed_into_each(&mut count, f, "PROCESS-NAME-REGEX", package_name_regex)?;
+        Ok(count)
+    }
 }
 
 fn rule_set_output_matches_behavior(output: &RuleSetOutput, behavior: BehaviorMode) -> bool {
@@ -560,6 +695,40 @@ pub fn sing_box_domain_suffix(rule: &str) -> String {
 
 fn extend_prefixed(out: &mut Vec<String>, kind: &str, values: &[String]) {
     out.extend(values.iter().map(|value| format!("{kind},{value}")));
+}
+
+fn extend_prefixed_each(
+    count: &mut usize,
+    f: &mut impl FnMut(&str) -> anyhow::Result<()>,
+    kind: &str,
+    values: &[String],
+) -> anyhow::Result<()> {
+    for value in values {
+        let mut rule = String::with_capacity(kind.len() + 1 + value.len());
+        rule.push_str(kind);
+        rule.push(',');
+        rule.push_str(value);
+        f(&rule)?;
+        *count += 1;
+    }
+    Ok(())
+}
+
+fn extend_prefixed_into_each(
+    count: &mut usize,
+    f: &mut impl FnMut(&str) -> anyhow::Result<()>,
+    kind: &str,
+    values: Vec<String>,
+) -> anyhow::Result<()> {
+    for value in values {
+        let mut rule = String::with_capacity(kind.len() + 1 + value.len());
+        rule.push_str(kind);
+        rule.push(',');
+        rule.push_str(&value);
+        f(&rule)?;
+        *count += 1;
+    }
+    Ok(())
 }
 
 mod string_list {

@@ -12,6 +12,10 @@ pub struct IpCidrSetBuilder {
 }
 
 impl IpCidrSetBuilder {
+    pub fn reserve(&mut self, ranges: usize) {
+        self.ranges.reserve(ranges);
+    }
+
     pub fn insert(&mut self, rule: &str) -> Result<()> {
         let range = parse_prefix(rule)?;
         self.ranges.push(range);

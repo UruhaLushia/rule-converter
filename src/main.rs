@@ -4,7 +4,8 @@ use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use rule_converter::{
     BehaviorMode, ConfigJob, ConvertOptions, InputBehaviorMode, InputFormat, OutputFormat,
-    RuleTarget, convert_files, load_config, write_outputs_as_owned,
+    RuleTarget, convert_files, convert_files_to_path_streaming, load_config,
+    write_outputs_as_owned,
 };
 
 fn main() -> Result<()> {
@@ -42,6 +43,12 @@ fn configure_threads(threads: Option<usize>) -> Result<()> {
 }
 
 fn run_job(job: ConfigJob) -> Result<()> {
+    if let Some((files, skipped)) =
+        convert_files_to_path_streaming(&job.input, &job.output, job.options)?
+    {
+        return report_result(files, skipped);
+    }
+
     let result = convert_files(&job.input, job.options)?;
     let (files, skipped) = write_outputs_as_owned(
         result,
@@ -50,6 +57,13 @@ fn run_job(job: ConfigJob) -> Result<()> {
         job.options.output_format,
     )?;
 
+    report_result(files, skipped)
+}
+
+fn report_result(
+    files: Vec<rule_converter::OutputFile>,
+    skipped: Vec<rule_converter::SkippedRule>,
+) -> Result<()> {
     for file in files {
         eprintln!(
             "wrote {} rules to {} ({})",

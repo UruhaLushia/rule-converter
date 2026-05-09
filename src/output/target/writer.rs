@@ -429,6 +429,20 @@ fn rule_set_output_behavior(rule_set: &sing_box::RuleSet, behavior: BehaviorMode
     }
 }
 
+fn rule_store_output_behavior(rule_store: &RuleStore, behavior: BehaviorMode) -> Behavior {
+    match behavior {
+        BehaviorMode::Ipcidr => Behavior::Ipcidr,
+        BehaviorMode::Domain => Behavior::Domain,
+        BehaviorMode::Auto | BehaviorMode::Classical => {
+            if rule_store.has_ip_rules() && !rule_store.has_domain_rules() {
+                Behavior::Ipcidr
+            } else {
+                Behavior::Domain
+            }
+        }
+    }
+}
+
 fn write_generic_text(
     file: &mut BufWriter<fs::File>,
     rule_set: &RuleSetOutput,
@@ -491,9 +505,9 @@ fn write_owned_sing_box_to_path(
         bail!("sing-box owned writer only supports `json` and `srs` formats");
     }
 
-    let rule_set = sing_box_rules.to_rule_set_with_behavior(behavior);
-    let output_behavior = rule_set_output_behavior(&rule_set, behavior);
-    if rule_set.count() == 0 {
+    let output_behavior = rule_store_output_behavior(&sing_box_rules, behavior);
+    let count = sing_box_rules.count();
+    if count == 0 {
         bail!("no supported rules found for the requested conversion");
     }
     let path =
@@ -509,16 +523,10 @@ fn write_owned_sing_box_to_path(
     let file = fs::File::create(&path)
         .with_context(|| format!("failed to create output {}", path.display()))?;
     let mut file = BufWriter::with_capacity(FILE_BUFFER_SIZE, file);
-    let count = match format {
-        OutputFormat::Json => {
-            let count = rule_set.count();
-            sing_box::json::write_json(&mut file, &rule_set)?;
-            count
-        }
+    match format {
+        OutputFormat::Json => sing_box::json::write_store_json(&mut file, &sing_box_rules)?,
         OutputFormat::Srs => {
-            let count = rule_set.count();
-            sing_box::srs::write_srs(&mut file, &rule_set)?;
-            count
+            sing_box::srs::write_owned_store_srs(&mut file, sing_box_rules)?;
         }
         _ => unreachable!("format checked above"),
     };

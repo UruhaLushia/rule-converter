@@ -8,9 +8,12 @@ use super::rule::VERSION_CURRENT;
 use super::{RuleSet, RuleStore};
 
 pub fn parse_json(raw: &[u8]) -> Result<Vec<String>> {
-    let rule_set: RuleSet =
-        serde_json::from_slice(raw).context("failed to parse sing-box rule-set JSON")?;
+    let rule_set = read_json(raw)?;
     Ok(rule_set.to_classical_rules())
+}
+
+pub fn read_json(raw: &[u8]) -> Result<RuleSet> {
+    serde_json::from_slice(raw).context("failed to parse sing-box rule-set JSON")
 }
 
 pub fn write_json<W: Write>(writer: W, rule_set: &RuleSet) -> Result<()> {

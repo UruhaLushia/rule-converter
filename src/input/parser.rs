@@ -77,26 +77,16 @@ fn for_each_sing_box_json_rule<R: BufRead>(
     reader
         .read_to_end(&mut raw)
         .context("failed to read sing-box JSON input")?;
-    let rules = sing_box::json::parse_json(&raw)?;
-    let count = rules.len();
-    for rule in &rules {
-        f(rule)?;
-    }
-    Ok(count)
+    sing_box::json::read_json(&raw)?.into_each_classical_rule(&mut f)
 }
 
 fn for_each_sing_box_srs_rule<R: BufRead>(
     mut reader: R,
-    mut f: impl FnMut(&str) -> Result<()>,
+    f: impl FnMut(&str) -> Result<()>,
 ) -> Result<usize> {
     let mut raw = Vec::new();
     reader
         .read_to_end(&mut raw)
         .context("failed to read sing-box SRS input")?;
-    let rules = sing_box::srs::parse_srs(&raw)?;
-    let count = rules.len();
-    for rule in &rules {
-        f(rule)?;
-    }
-    Ok(count)
+    sing_box::srs::read_srs(&raw)?.into_each_classical_rule(f)
 }

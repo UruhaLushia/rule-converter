@@ -11,6 +11,11 @@ struct RuleTextRef {
 }
 
 impl RuleTextStore {
+    pub fn reserve(&mut self, items: usize, bytes: usize) {
+        self.items.reserve(items);
+        self.bytes.reserve(bytes);
+    }
+
     pub fn push(&mut self, value: impl AsRef<str>) {
         let value = value.as_ref();
         let offset = self.bytes.len();
