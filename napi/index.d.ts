@@ -60,6 +60,25 @@ export declare function listGeositeCodes(input: string): Array<string>
 
 export declare function listGeositeCodesFromBuffer(input: Uint8Array): Array<string>
 
+
+export interface MatchOptions {
+  inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset'
+  inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
+}
+
+export interface MatchRule {
+  behavior: string
+  rule: string
+}
+
+export interface MatchResult {
+  matched: boolean
+  query: string
+  kind: string
+  rules: Array<MatchRule>
+}
+
 export interface SkippedRule {
   rule: string
   reason: string
@@ -68,3 +87,9 @@ export interface SkippedRule {
 export declare function strToBuf(input: string, options?: AnyConvertOptions | undefined | null): AnyBufferResult
 
 export declare function strToStr(input: string, options?: AnyConvertOptions | undefined | null): AnyStringResult
+
+export declare function matchBuf(input: Uint8Array, query: string, options?: MatchOptions | undefined | null): MatchResult
+
+export declare function matchStr(input: string, query: string, options?: MatchOptions | undefined | null): MatchResult
+
+export declare function matchFile(input: string, query: string, options?: MatchOptions | undefined | null): MatchResult

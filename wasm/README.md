@@ -145,6 +145,21 @@ const geositeRules = bufToStr(geositeDatBytes, {
 })
 ```
 
+
+Rule matching uses the same input options as conversion. Mihomo config input is supported when providers use local `path`/`file://` references supplied by the host application; browser HTTP provider downloads should be handled by the caller before matching:
+
+```js
+import init, { matchStr } from '@uruhalushia/rule-converter-wasm'
+
+await init()
+const result = matchStr('DOMAIN-SUFFIX,example.com\n', 'ads.example.com', {
+  inputTarget: 'general',
+  inputFormat: 'text',
+  inputBehavior: 'classical',
+})
+console.log(result.matched, result.rules)
+```
+
 Options use the same names as the N-API package:
 
 ```ts

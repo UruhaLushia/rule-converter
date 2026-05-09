@@ -66,16 +66,16 @@ pnpm --dir wasm build
 
 ## CLI 用法
 
-普通 CLI 保留简单的一次转换：最后一个路径是输出，其余路径是输入。输入会自动检测，输出默认是 `mihomo + mrs`，也可以用 `--output-target`、`--output-format`、`--output-behavior` 指定。
+CLI 使用子命令。`convert` 做转换：最后一个路径是输出，其余路径是输入。输入会自动检测，输出默认是 `mihomo + mrs`，也可以用 `--output-target`、`--output-format`、`--output-behavior` 指定。
 
 ```bash
-target/release/rule-converter rules.yaml rules.mrs
+target/release/rule-converter convert rules.yaml rules.mrs
 ```
 
 指定输出目标、格式和行为：
 
 ```bash
-target/release/rule-converter \
+target/release/rule-converter convert \
   --output-target general \
   --output-format ruleset \
   --output-behavior classical \
@@ -85,20 +85,29 @@ target/release/rule-converter \
 多个输入会合并后转换。输入可以是文件、目录，或最终路径组件中的 `*` 通配符：
 
 ```bash
-target/release/rule-converter '/path/to/rules/*' dist/ad.mrs
+target/release/rule-converter convert '/path/to/rules/*' dist/ad.mrs
 ```
 
 复杂转换使用配置文件，包括指定输入 target、format、behavior，多输出，GeoIP/ASN 导出、构建、过滤和 DB 直转：
 
 ```bash
-target/release/rule-converter --config examples/config.yaml
+target/release/rule-converter convert --config examples/config.yaml
+```
+
+
+匹配域名或 IP，输出 JSON 结果；输入可以是普通规则文件、MRS/SRS，也可以是带 `rules` 和 `rule-providers` 的 Mihomo 配置。Mihomo 配置会按规则顺序匹配 `RULE-SET` provider，CLI 支持 provider 的本地 `path`、`file://` 和 HTTP(S) `url`，HTTP provider 会下载到内存中临时匹配。
+
+```bash
+target/release/rule-converter match ads.example.com rules.list
+target/release/rule-converter match 10.2.3.4 --input-behavior classical rules.list
+target/release/rule-converter match github.com config.yaml
 ```
 
 查看 MMDB 中可用的国家代码或 ASN：
 
 ```bash
-target/release/rule-converter --list geoip country.mmdb
-target/release/rule-converter --list asn GeoLite2-ASN.mmdb
+target/release/rule-converter convert --list geoip country.mmdb
+target/release/rule-converter convert --list asn GeoLite2-ASN.mmdb
 ```
 
 通用 mixed text 是一行一条、带明确规则类型的 ruleset：
@@ -197,7 +206,7 @@ python -m http.server 5173
 CLI 支持 YAML、TOML、JSON 配置文件：
 
 ```bash
-target/release/rule-converter --config examples/config.yaml
+target/release/rule-converter convert --config examples/config.yaml
 ```
 
 配置使用 `jobs` 数组。相对路径按配置文件所在目录解析。

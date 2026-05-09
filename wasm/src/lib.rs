@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use js_sys::{Object, Reflect, Uint8Array};
 use rule_converter::{
-    BehaviorMode, ConvertOptions as CoreConvertOptions, InputBehaviorMode, InputFormat, MmdbFormat,
-    OutputFormat, RuleSetOutput, RuleTarget, build_asn_mmdb_to_memory, build_geoip_db_to_memory,
+    BehaviorMode, ConvertOptions as CoreConvertOptions, InputBehaviorMode, InputFormat,
+    MatchOptions as CoreMatchOptions, MatchResult as CoreMatchResult, MmdbFormat, OutputFormat,
+    RuleSetOutput, RuleTarget, build_asn_mmdb_to_memory, build_geoip_db_to_memory,
     build_geosite_dat_to_memory, convert_asn_mmdb_to_memory_filtered,
     convert_geoip_db_to_memory_filtered, convert_geosite_dat_to_memory_filtered, convert_payload,
     default_output_behavior, export_asn_mmdb_to_ipset_string, export_asn_mmdb_to_memory,
@@ -30,6 +31,30 @@ pub struct AnyConvertOptions {
     pub country: Option<String>,
     pub code: Option<String>,
     pub asn: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchOptions {
+    pub input_target: Option<String>,
+    pub input_format: Option<String>,
+    pub input_behavior: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MatchRule {
+    behavior: String,
+    rule: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MatchResult {
+    matched: bool,
+    query: String,
+    kind: String,
+    rules: Vec<MatchRule>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -97,6 +122,18 @@ pub fn str_to_str_wasm(payload: &str, options: JsValue) -> Result<JsValue, JsVal
     convert_any_payload_to_string_js(payload.as_bytes(), options)
 }
 
+#[wasm_bindgen(js_name = matchBuf)]
+pub fn match_buf_wasm(payload: &[u8], query: &str, options: JsValue) -> Result<JsValue, JsValue> {
+    let options = parse_match_options(options)?;
+    let result = rule_converter::match_payload(payload, query, options).map_err(to_js_error)?;
+    any_to_value(&map_match_result(result))
+}
+
+#[wasm_bindgen(js_name = matchStr)]
+pub fn match_str_wasm(payload: &str, query: &str, options: JsValue) -> Result<JsValue, JsValue> {
+    match_buf_wasm(payload.as_bytes(), query, options)
+}
+
 #[wasm_bindgen(js_name = listGeoipCountries)]
 pub fn list_geoip_countries_wasm(payload: &[u8]) -> Result<JsValue, JsValue> {
     let countries = list_geoip_mmdb_countries_from_bytes(payload).map_err(to_js_error)?;
@@ -119,6 +156,51 @@ pub fn list_geosite_codes_wasm(payload: &[u8]) -> Result<JsValue, JsValue> {
 pub fn list_asn_numbers_wasm(payload: &[u8]) -> Result<JsValue, JsValue> {
     let asns = list_asn_mmdb_asns_from_bytes(payload).map_err(to_js_error)?;
     serde_wasm_bindgen::to_value(&asns).map_err(to_js_error)
+}
+
+fn parse_match_options(value: JsValue) -> Result<CoreMatchOptions, JsValue> {
+    let options: MatchOptions = if value.is_undefined() || value.is_null() {
+        MatchOptions::default()
+    } else {
+        serde_wasm_bindgen::from_value(value).map_err(to_js_error)?
+    };
+    Ok(CoreMatchOptions {
+        input_target: options
+            .input_target
+            .as_deref()
+            .map(RuleTarget::parse_arg)
+            .transpose()
+            .map_err(to_js_error)?,
+        input_format: options
+            .input_format
+            .as_deref()
+            .map(InputFormat::parse_arg)
+            .transpose()
+            .map_err(to_js_error)?,
+        input_behavior: options
+            .input_behavior
+            .as_deref()
+            .map(InputBehaviorMode::parse_arg)
+            .transpose()
+            .map_err(to_js_error)?
+            .unwrap_or(InputBehaviorMode::Auto),
+    })
+}
+
+fn map_match_result(result: CoreMatchResult) -> MatchResult {
+    MatchResult {
+        matched: result.matched,
+        query: result.query,
+        kind: result.kind.as_str().to_string(),
+        rules: result
+            .rules
+            .into_iter()
+            .map(|rule| MatchRule {
+                behavior: rule.behavior.as_str().to_string(),
+                rule: rule.rule,
+            })
+            .collect(),
+    }
 }
 
 fn parse_any_options(value: JsValue) -> Result<AnyConvertOptions, JsValue> {

@@ -19,6 +19,7 @@ import {
   listGeoipCountries,
   listGeoipDatCountries,
   listGeositeCodes,
+  matchFile,
   strToBuf,
   strToStr,
 } from '@uruhalushia/rule-converter-napi'
@@ -83,6 +84,18 @@ console.log(listGeositeCodes('geosite.dat'))
 console.log(listAsnNumbers('GeoLite2-ASN.mmdb'))
 ```
 
+```js
+const match = matchFile('rules.list', 'ads.example.com', {
+  inputTarget: 'general',
+  inputFormat: 'text',
+  inputBehavior: 'classical',
+})
+console.log(match.matched, match.rules)
+
+const route = matchFile('config.yaml', 'github.com')
+console.log(route.matched, route.rules)
+```
+
 `outputs` is a name-keyed object. Rule output keys are usually behavior names such as `domain`, `ip`, or `classical`. DB export keys are country codes, ASN numbers, or `db` for a generated database.
 
 ## API
@@ -99,6 +112,7 @@ console.log(listAsnNumbers('GeoLite2-ASN.mmdb'))
 - `listGeositeCodes(input)` / `listGeositeCodesFromBuffer(input)`: reads V2Ray `geosite.dat` and returns sorted site codes.
 - `listAsnNumbers(input)`: reads an ASN MMDB file path and returns sorted ASN numbers.
 - `listAsnNumbersFromBuffer(input)`: reads ASN MMDB bytes and returns sorted ASN numbers.
+- `matchBuf(input, query, options?)` / `matchStr(input, query, options?)` / `matchFile(input, query, options?)`: matches a domain or IP against rules and returns `{ matched, query, kind, rules }`. Mihomo config input is supported for provider `path`, `file://`, and HTTP(S) `url`. HTTP providers are downloaded into memory for matching.
 
 ```ts
 interface AnyConvertOptions {

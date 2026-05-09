@@ -3,11 +3,11 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use clap::{Parser, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
 use rule_converter::{
     Behavior, BehaviorMode, ConfigJob, ConvertOptions, DbConfigJob, DbExportOutput, DbInputPath,
-    DbTarget, FileInput, InputBehaviorMode, OutputFile, OutputFormat, RuleConfigJob, RuleSetOutput,
-    RuleTarget, build_asn_mmdb_from_rule_sets, build_geoip_dat_from_rule_sets,
+    DbTarget, FileInput, InputBehaviorMode, MatchOptions, OutputFile, OutputFormat, RuleConfigJob,
+    RuleSetOutput, RuleTarget, build_asn_mmdb_from_rule_sets, build_geoip_dat_from_rule_sets,
     build_geoip_mmdb_from_rule_sets, build_geosite_dat_from_rule_sets, collect_asn_mmdb_rule_set,
     collect_asn_mmdb_rule_sets, collect_geoip_dat_rule_set, collect_geoip_dat_rule_sets,
     collect_geoip_mmdb_rule_set, collect_geoip_mmdb_rule_sets, collect_geosite_dat_rule_set,
@@ -18,11 +18,17 @@ use rule_converter::{
     export_geoip_mmdb_mrs_to_path, export_geosite_dat_general_ruleset_to_dir,
     export_geosite_dat_general_ruleset_to_path, filter_geoip_dat_to_path,
     filter_geosite_dat_to_path, list_asn_mmdb_asns, list_geoip_mmdb_countries, load_config,
-    write_outputs_as_owned,
+    match_file_inputs, write_outputs_as_owned,
 };
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    match Cli::parse().command {
+        Command::Convert(cli) => run_convert_command(cli),
+        Command::Match(cli) => run_match_command(cli),
+    }
+}
+
+fn run_convert_command(cli: ConvertCli) -> Result<()> {
     if let Some(target) = cli.list {
         if cli.config.is_some() || cli.paths.len() != 1 {
             anyhow::bail!(
@@ -37,6 +43,39 @@ fn main() -> Result<()> {
         run_job(job)?;
     }
 
+    Ok(())
+}
+
+fn run_match_command(cli: MatchCli) -> Result<()> {
+    if cli.paths.is_empty() {
+        anyhow::bail!("match needs at least one input path");
+    }
+    let inputs = cli
+        .paths
+        .into_iter()
+        .map(|path| FileInput {
+            path,
+            target: cli.input_target.map(Into::into),
+            format: cli.input_format.map(Into::into),
+            behavior: cli
+                .input_behavior
+                .map(Into::into)
+                .unwrap_or(InputBehaviorMode::Auto),
+        })
+        .collect::<Vec<_>>();
+    let result = match_file_inputs(
+        inputs,
+        &cli.query,
+        MatchOptions {
+            input_target: cli.input_target.map(Into::into),
+            input_format: cli.input_format.map(Into::into),
+            input_behavior: cli
+                .input_behavior
+                .map(Into::into)
+                .unwrap_or(InputBehaviorMode::Auto),
+        },
+    )?;
+    println!("{}", serde_json::to_string_pretty(&result)?);
     Ok(())
 }
 
@@ -514,9 +553,23 @@ fn report_result(
 #[derive(Debug, Parser)]
 #[command(
     version,
-    about = "Convert rule files between supported targets and formats"
+    about = "Convert and match rule files between supported targets and formats"
 )]
 struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Convert rule files between supported targets and formats.
+    Convert(ConvertCli),
+    /// Match a domain or IP against rule files.
+    Match(MatchCli),
+}
+
+#[derive(Debug, Parser)]
+struct ConvertCli {
     /// Source rule file(s), followed by the target output file.
     #[arg(value_name = "PATH", num_args = 0..)]
     paths: Vec<PathBuf>,
@@ -542,7 +595,29 @@ struct Cli {
     list: Option<DbListArg>,
 }
 
-impl Cli {
+#[derive(Debug, Parser)]
+struct MatchCli {
+    /// Domain name or IP address to match.
+    query: String,
+
+    /// Rule input file(s), directory, or wildcard path.
+    #[arg(value_name = "PATH", num_args = 1..)]
+    paths: Vec<PathBuf>,
+
+    /// Input rule target.
+    #[arg(long, value_enum)]
+    input_target: Option<RuleTargetArg>,
+
+    /// Input format.
+    #[arg(long, value_enum)]
+    input_format: Option<InputFormatArg>,
+
+    /// Input behavior.
+    #[arg(long, value_enum)]
+    input_behavior: Option<InputBehaviorArg>,
+}
+
+impl ConvertCli {
     fn into_jobs(self) -> Result<Vec<ConfigJob>> {
         if let Some(config) = self.config {
             if !self.paths.is_empty() {
@@ -597,6 +672,25 @@ enum DbListArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum InputBehaviorArg {
+    Auto,
+    Domain,
+    Ip,
+    Classical,
+}
+
+impl From<InputBehaviorArg> for InputBehaviorMode {
+    fn from(value: InputBehaviorArg) -> Self {
+        match value {
+            InputBehaviorArg::Auto => InputBehaviorMode::Auto,
+            InputBehaviorArg::Domain => InputBehaviorMode::Domain,
+            InputBehaviorArg::Ip => InputBehaviorMode::Ipcidr,
+            InputBehaviorArg::Classical => InputBehaviorMode::Classical,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BehaviorArg {
     Domain,
     Ip,
@@ -628,6 +722,33 @@ impl From<RuleTargetArg> for RuleTarget {
             RuleTargetArg::General => RuleTarget::General,
             RuleTargetArg::Egern => RuleTarget::Egern,
             RuleTargetArg::SingBox => RuleTarget::SingBox,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum InputFormatArg {
+    Yaml,
+    Mrs,
+    Text,
+    Json,
+    Srs,
+    Domainset,
+    Ruleset,
+    Ipset,
+}
+
+impl From<InputFormatArg> for rule_converter::InputFormat {
+    fn from(value: InputFormatArg) -> Self {
+        match value {
+            InputFormatArg::Yaml => rule_converter::InputFormat::Yaml,
+            InputFormatArg::Mrs => rule_converter::InputFormat::Mrs,
+            InputFormatArg::Text
+            | InputFormatArg::Domainset
+            | InputFormatArg::Ruleset
+            | InputFormatArg::Ipset => rule_converter::InputFormat::Text,
+            InputFormatArg::Json => rule_converter::InputFormat::Json,
+            InputFormatArg::Srs => rule_converter::InputFormat::Srs,
         }
     }
 }

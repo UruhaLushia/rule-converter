@@ -144,6 +144,41 @@ impl IpCidrSet {
         Ok(())
     }
 
+    pub fn contains_ip(&self, ip: IpAddr) -> bool {
+        self.matching_range(ip).is_some()
+    }
+
+    pub fn matching_prefix(&self, ip: IpAddr) -> Option<String> {
+        let range = *self.matching_range(ip)?;
+        let needle = parsed_addr_from_ip(ip);
+        for (addr, prefix_len) in range.prefixes() {
+            let prefix_range = range_from_value_prefix(range.family, addr, prefix_len);
+            if prefix_range.from <= needle.value && needle.value <= prefix_range.to {
+                return Some(format_addr_prefix(range.family, addr, prefix_len));
+            }
+        }
+        None
+    }
+
+    fn matching_range(&self, ip: IpAddr) -> Option<&IpRange> {
+        let needle = parsed_addr_from_ip(ip);
+        self.ranges
+            .binary_search_by(|range| {
+                if range.family != needle.family {
+                    return range.family.cmp(&needle.family);
+                }
+                if range.to < needle.value {
+                    std::cmp::Ordering::Less
+                } else if range.from > needle.value {
+                    std::cmp::Ordering::Greater
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            })
+            .ok()
+            .map(|index| &self.ranges[index])
+    }
+
     pub fn for_each_prefix(
         &self,
         mut f: impl FnMut(IpAddr, u8) -> io::Result<()>,
@@ -194,6 +229,12 @@ struct ParsedAddr {
     value: u128,
 }
 
+pub fn prefix_contains_ip(rule: &str, ip: IpAddr) -> Result<bool> {
+    let range = parse_prefix(rule)?;
+    let needle = parsed_addr_from_ip(ip);
+    Ok(range.family == needle.family && range.from <= needle.value && needle.value <= range.to)
+}
+
 pub fn parse_prefix(rule: &str) -> Result<IpRange> {
     let (addr, prefix_len) = rule
         .trim()
@@ -209,6 +250,19 @@ pub fn parse_prefix(rule: &str) -> Result<IpRange> {
     match addr {
         IpAddr::V4(addr) => ipv4_range(addr, prefix_len),
         IpAddr::V6(addr) => ipv6_range(addr, prefix_len),
+    }
+}
+
+fn parsed_addr_from_ip(ip: IpAddr) -> ParsedAddr {
+    match ip {
+        IpAddr::V4(addr) => ParsedAddr {
+            family: IpFamily::V4,
+            value: u32::from(addr) as u128,
+        },
+        IpAddr::V6(addr) => ParsedAddr {
+            family: IpFamily::V6,
+            value: u128::from(addr),
+        },
     }
 }
 
@@ -255,6 +309,13 @@ fn ipv6_range_unchecked(addr: Ipv6Addr, prefix_len: u8) -> IpRange {
         family: IpFamily::V6,
         from,
         to,
+    }
+}
+
+fn range_from_value_prefix(family: IpFamily, value: u128, prefix_len: u8) -> IpRange {
+    match family {
+        IpFamily::V4 => ipv4_range_unchecked(Ipv4Addr::from(value as u32), prefix_len),
+        IpFamily::V6 => ipv6_range_unchecked(Ipv6Addr::from(value), prefix_len),
     }
 }
 

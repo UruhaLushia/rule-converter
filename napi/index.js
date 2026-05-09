@@ -106,3 +106,6 @@ export const listGeositeCodes = nativeBinding.listGeositeCodes
 export const listGeositeCodesFromBuffer = nativeBinding.listGeositeCodesFromBuffer
 export const listAsnNumbers = nativeBinding.listAsnNumbers
 export const listAsnNumbersFromBuffer = nativeBinding.listAsnNumbersFromBuffer
+export const matchBuf = nativeBinding.matchBuf
+export const matchStr = nativeBinding.matchStr
+export const matchFile = nativeBinding.matchFile

@@ -247,6 +247,47 @@ impl DomainSet {
         keys
     }
 
+    pub fn contains_domain(&self, domain: &str) -> bool {
+        let domain = domain.trim().trim_end_matches('.');
+        if domain.is_empty() || domain.as_bytes().contains(&0) {
+            return false;
+        }
+        let lower;
+        let domain = if domain.bytes().any(|byte| byte.is_ascii_uppercase()) {
+            lower = domain.to_ascii_lowercase();
+            lower.as_str()
+        } else {
+            domain
+        };
+        if domain.split('.').any(str::is_empty) {
+            return false;
+        }
+
+        let index = LoudsIndex::new(&self.label_bitmap);
+        let mut reversed = Vec::with_capacity(domain.len());
+        for ch in domain.chars().rev() {
+            let mut buf = [0; 4];
+            reversed.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
+        }
+        if self.contains_reversed_key(&reversed, &index) {
+            return true;
+        }
+
+        let mut suffix = domain;
+        while let Some((_, parent)) = suffix.split_once('.') {
+            suffix = parent;
+            reversed.clear();
+            for ch in suffix.chars().rev() {
+                let mut buf = [0; 4];
+                reversed.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
+            }
+            if self.contains_reversed_key_with_suffix(&reversed, b".+", &index) {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn for_each_rule(&self, mut f: impl FnMut(&str) -> io::Result<()>) -> io::Result<()> {
         if !self.has_suffix {
             return self.for_each_raw_rule(f);

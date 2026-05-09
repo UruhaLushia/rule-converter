@@ -37,17 +37,27 @@ pub(crate) fn parse_lines(text: &str) -> Vec<String> {
 }
 
 pub fn for_each_plain_rule<R: BufRead>(
-    reader: R,
+    mut reader: R,
     mut f: impl FnMut(&str) -> Result<()>,
 ) -> Result<usize> {
     let mut count = 0usize;
-    for (index, line) in reader.lines().enumerate() {
-        let line = line.context("failed to read text rule line")?;
+    let mut line = String::new();
+    let mut index = 0usize;
+    loop {
+        line.clear();
+        if reader
+            .read_line(&mut line)
+            .context("failed to read text rule line")?
+            == 0
+        {
+            break;
+        }
         let line = if index == 0 {
             line.trim_start_matches('\u{feff}')
         } else {
             line.as_str()
         };
+        index += 1;
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
             continue;
@@ -59,16 +69,26 @@ pub fn for_each_plain_rule<R: BufRead>(
 }
 
 pub fn for_each_domain_set_rule<R: BufRead>(
-    reader: R,
+    mut reader: R,
     mut f: impl FnMut(&str) -> Result<()>,
 ) -> Result<usize> {
     let mut count = 0usize;
-    for (index, line) in reader.lines().enumerate() {
-        let line = line.context("failed to read domain-set line")?;
+    let mut line = String::new();
+    let mut index = 0usize;
+    loop {
+        line.clear();
+        if reader
+            .read_line(&mut line)
+            .context("failed to read domain-set line")?
+            == 0
+        {
+            break;
+        }
         if let Some(rule) = normalize_domain_set_line(index, &line) {
             f(&rule)?;
             count += 1;
         }
+        index += 1;
     }
     Ok(count)
 }

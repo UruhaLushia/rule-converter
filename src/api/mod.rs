@@ -23,7 +23,9 @@ use crate::rules::{
 };
 
 mod db;
+mod matcher;
 pub use db::*;
+pub use matcher::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ConvertOptions {

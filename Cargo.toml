@@ -7,9 +7,10 @@ edition = "2024"
 members = [".", "napi", "wasm"]
 
 [features]
-default = ["cli", "parallel"]
-cli = ["config", "dep:clap"]
+default = ["cli", "parallel", "http"]
+cli = ["config", "dep:clap", "http"]
 config = ["dep:serde_yaml", "dep:toml"]
+http = ["dep:ureq"]
 parallel = ["dep:rayon"]
 
 [profile.release]
@@ -33,3 +34,5 @@ rayon = { version = "1.12", optional = true }
 maxminddb = "0.28"
 maxminddb-writer = "0.1"
 prost = "0.14"
+regex = "1"
+ureq = { version = "3.3", default-features = false, features = ["rustls", "gzip"], optional = true }

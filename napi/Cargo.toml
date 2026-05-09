@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 anyhow = "1.0"
 napi = { version = "3", default-features = false, features = ["napi4"] }
 napi-derive = "3"
-rule-converter = { path = "..", default-features = false, features = ["parallel"] }
+rule-converter = { path = "..", default-features = false, features = ["parallel", "http"] }
 
 [build-dependencies]
 napi-build = "2"
