@@ -18,4 +18,13 @@ impl RuleTarget {
             other => bail!("unsupported rule target: {other}"),
         }
     }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Mihomo => "mihomo",
+            Self::General => "general",
+            Self::Egern => "egern",
+            Self::SingBox => "sing-box",
+        }
+    }
 }

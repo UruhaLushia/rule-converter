@@ -103,6 +103,37 @@ for (const output of result.outputs) {
 
 The returned `bytes` value is a `Uint8Array`, so it can be downloaded, uploaded, or stored in IndexedDB directly.
 
+MMDB list APIs also accept uploaded file bytes:
+
+```js
+import init, { listAsnNumbers, listGeoipCountries } from '@uruhalushia/rule-converter-wasm'
+
+await init()
+
+const bytes = new Uint8Array(await file.arrayBuffer())
+console.log(listGeoipCountries(bytes))
+console.log(listAsnNumbers(bytes))
+```
+
+DB conversion APIs are also available in WASM and return byte arrays for browser download/storage:
+
+```js
+import { buildGeoipDb, convertGeoipDb, exportGeoipDb } from '@uruhalushia/rule-converter-wasm'
+
+const db = new Uint8Array(await mmdbFile.arrayBuffer())
+const cn = exportGeoipDb(db, {
+  countries: ['cn'],
+  outputTarget: 'general',
+  outputFormat: 'ipset',
+})
+const singDb = convertGeoipDb(db, { outputFormat: 'sing-db' })
+const built = buildGeoipDb([
+  { country: 'cn', payload: new TextEncoder().encode('1.1.1.0/24\n') },
+], { outputFormat: 'mmdb' })
+```
+
+Available DB APIs: `exportGeoipDb`, `exportAsnDb`, `convertGeoipDb`, `convertAsnDb`, `buildGeoipDb`, and `buildAsnDb`.
+
 Options use the same names as the N-API package:
 
 ```ts

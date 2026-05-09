@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use anyhow::Result;
 
 use super::{Behavior, DomainSet, IpCidrSet};
@@ -39,6 +41,16 @@ impl RuleSetOutput {
         match self {
             Self::Domain(set) => set.for_each_rule(f),
             Self::Ipcidr(set) => set.for_each_rule(f),
+        }
+    }
+
+    pub(crate) fn for_each_ip_prefix(
+        &self,
+        f: impl FnMut(IpAddr, u8) -> std::io::Result<()>,
+    ) -> std::io::Result<()> {
+        match self {
+            Self::Domain(_) => Ok(()),
+            Self::Ipcidr(set) => set.for_each_prefix(f),
         }
     }
 }

@@ -92,13 +92,13 @@ if (!nativeBinding) {
 }
 
 export default nativeBinding
-export const convertPayloadToMrs = nativeBinding.convertPayloadToMrs
-export const convertPayloadStringToMrs = nativeBinding.convertPayloadStringToMrs
-export const convertPayloadToBuffer = nativeBinding.convertPayloadToBuffer
-export const convertPayloadStringToBuffer = nativeBinding.convertPayloadStringToBuffer
-export const convertPayloadToString = nativeBinding.convertPayloadToString
-export const convertPayloadStringToString = nativeBinding.convertPayloadStringToString
-export const convertFileToMrs = nativeBinding.convertFileToMrs
-export const convertFileToBuffer = nativeBinding.convertFileToBuffer
-export const convertFileToString = nativeBinding.convertFileToString
-export const convertFileToPath = nativeBinding.convertFileToPath
+export const bufToBuf = nativeBinding.bufToBuf
+export const strToBuf = nativeBinding.strToBuf
+export const fileToBuf = nativeBinding.fileToBuf
+export const bufToStr = nativeBinding.bufToStr
+export const strToStr = nativeBinding.strToStr
+export const fileToStr = nativeBinding.fileToStr
+export const listGeoipCountries = nativeBinding.listGeoipCountries
+export const listGeoipCountriesFromBuffer = nativeBinding.listGeoipCountriesFromBuffer
+export const listAsnNumbers = nativeBinding.listAsnNumbers
+export const listAsnNumbersFromBuffer = nativeBinding.listAsnNumbersFromBuffer

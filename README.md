@@ -66,42 +66,13 @@ pnpm --dir wasm build
 
 ## CLI 用法
 
-默认输出是 `mihomo + mrs + auto`：纯 domain/IP 输入会跟随输入类型；mixed/classical 输入需要显式指定 `--output-behavior domain` 或 `ip`。
+普通 CLI 保留简单的一次转换：最后一个路径是输出，其余路径是输入。输入会自动检测，输出默认是 `mihomo + mrs`，也可以用 `--output-target`、`--output-format`、`--output-behavior` 指定。
 
 ```bash
 target/release/rule-converter rules.yaml rules.mrs
 ```
 
-显式指定输出：
-
-```bash
-target/release/rule-converter \
-  --output-target mihomo \
-  --output-format mrs \
-  --output-behavior domain \
-  rules.yaml dist/rules.mrs
-```
-
-显式指定输入解释：
-
-```bash
-target/release/rule-converter \
-  --input-target general \
-  --input-format text \
-  --input-behavior domain \
-  --output-target general \
-  --output-format domainset \
-  --output-behavior domain \
-  domains.list dist/domains.list
-```
-
-多个输入会合并后转换。输入可以是文件、目录，或最终路径组件中的 `*` 通配符：
-
-```bash
-target/release/rule-converter '/path/to/rules/*' dist/ad.mrs
-```
-
-输出为通用 mixed text：
+指定输出目标、格式和行为：
 
 ```bash
 target/release/rule-converter \
@@ -111,22 +82,31 @@ target/release/rule-converter \
   rules.yaml dist/rules.list
 ```
 
+多个输入会合并后转换。输入可以是文件、目录，或最终路径组件中的 `*` 通配符：
+
+```bash
+target/release/rule-converter '/path/to/rules/*' dist/ad.mrs
+```
+
+复杂转换使用配置文件，包括指定输入 target、format、behavior，多输出，GeoIP/ASN 导出、构建、过滤和 DB 直转：
+
+```bash
+target/release/rule-converter --config examples/config.yaml
+```
+
+查看 MMDB 中可用的国家代码或 ASN：
+
+```bash
+target/release/rule-converter --list geoip country.mmdb
+target/release/rule-converter --list asn GeoLite2-ASN.mmdb
+```
+
 通用 mixed text 是一行一条、带明确规则类型的 ruleset：
 
 ```text
 DOMAIN,example.com
 DOMAIN-SUFFIX,example.net
 IP-CIDR,192.0.2.0/24,no-resolve
-```
-
-通用 domainset 使用 `output_behavior = domain`：
-
-```bash
-target/release/rule-converter \
-  --output-target general \
-  --output-format domainset \
-  --output-behavior domain \
-  domains.list dist/domains.list
 ```
 
 domain-set 每行是域名，`.example.com` 表示匹配自身和全部子域名。输入是纯域名列表时会自动按 domain-set 读取；输入是带 `DOMAIN,`、`IP-CIDR,` 等明确类型的文本时会自动按 mixed ruleset 读取。
@@ -141,40 +121,9 @@ mihomo domain text 使用 mihomo/Clash 的 domain 通配语法：
 
 其中 `+.example.com` 匹配自身和全部子域名，`.example.com` 只匹配子域名。它不同于 general domain-set 的 `.example.com` 语义。
 
-Egern rule-set YAML 输入或输出：
-
-```bash
-target/release/rule-converter \
-  --output-target mihomo \
-  --output-format mrs \
-  --output-behavior domain \
-  egern.yaml dist/rules.mrs
-```
-
-```bash
-target/release/rule-converter \
-  --output-target egern \
-  --output-format ruleset \
-  --output-behavior classical \
-  rules.yaml dist/egern.yaml
-```
-
 Egern 的 `no_resolve: true` 是 ruleset 顶层字段。读取 Egern 时会映射为 mixed IP 规则的 `no-resolve`；从 mixed 规则写回 Egern 时，如果存在 IP `no-resolve`，会写出顶层 `no_resolve: true`。
 
 `no-resolve` 只在 mixed text / mihomo YAML / Egern ruleset YAML 之间保留。输出 MRS、sing-box JSON/SRS 或 domain-set 时会丢失，因为这些格式没有对应字段。
-
-sing-box JSON/SRS 输入或输出：
-
-```bash
-target/release/rule-converter \
-  --input-target general \
-  --input-format text \
-  --input-behavior classical \
-  --output-target sing-box \
-  --output-format srs \
-  --output-behavior classical \
-  rules.list dist/rules.srs
-```
 
 sing-box 的 `domain_suffix` 使用自身语义：`example.com` 表示自身和全部子域名，`.example.com` 表示只匹配子域名。转换到 mihomo domain text 时会分别写成 `+.example.com` 和 `.example.com`。
 
@@ -203,6 +152,18 @@ console.log(first.behavior, first.format, first.count, first.bytes)
 ```
 
 返回值里的 `bytes` 是 `Uint8Array`，可直接用于下载、上传或写入 IndexedDB。
+
+WASM 也支持直接查看 MMDB 内容列表，传入上传文件的 `Uint8Array`：
+
+```js
+import init, { listAsnNumbers, listGeoipCountries } from './pkg/rule_converter_wasm.js'
+
+await init()
+
+const bytes = new Uint8Array(await file.arrayBuffer())
+console.log(listGeoipCountries(bytes))
+console.log(listAsnNumbers(bytes))
+```
 
 本地编译后可以直接引用 `wasm/pkg`：
 
@@ -239,19 +200,96 @@ CLI 支持 YAML、TOML、JSON 配置文件：
 target/release/rule-converter --config examples/config.yaml
 ```
 
-配置可以写一个顶层任务，也可以写 `jobs` 数组。相对路径按配置文件所在目录解析。
+配置使用 `jobs` 数组。相对路径按配置文件所在目录解析。
 
 字段：
 
-- `input`: 输入路径，支持字符串或字符串数组。路径可以是文件、目录或最终路径组件中的 `*` 通配符。
-- `output`: 输出路径。
-- `input_target`: 可选，`mihomo`、`general`、`egern`、`sing-box`。
-- `input_format`: 可选，`yaml`、`mrs`、`text`、`json`、`srs`。
-- `input_behavior`: 可选，`auto`、`domain`、`ip`、`classical`。
-- `output_target`: `mihomo`、`general`、`egern`、`sing-box`。
-- `output_format`: mihomo 使用 `mrs`、`text`、`yaml`；sing-box 使用 `srs`、`json`；egern 使用 `ruleset`；general 使用 `domainset`、`ruleset`、`ipset`。
-- `output_behavior`: 可选，`auto`、`domain`、`ip`、`classical`。`domainset`/`ipset` 不使用该项；mihomo MRS 的 `auto` 会跟随明确的输入类型。
+- `input.path`: 单个输入路径。
+- `input.inputs`: 多个输入项。每项可以直接写路径，也可以写 `{ path, target, format, behavior }`；数据库构建项使用 `{ country, path, target, format, behavior }` 或 `{ asn, path, target, format, behavior }`。
+- `input.target`: 可选，规则输入使用 `mihomo`、`general`、`egern`、`sing-box`；数据库输入使用 `geoip` 或 `asn`。
+- `input.format`: 可选，规则输入使用 `yaml`、`mrs`、`text`、`json`、`srs`；`domainset`、`ruleset`、`ipset` 作为输入格式时按 `text` 读取。数据库输入使用 `mmdb`、`sing-db`、`metadb`，其中 `asn` 只支持 `mmdb`。
+- `input.behavior`: 可选，`auto`、`domain`、`ip`、`classical`。
+
+- `output`: 单个输出项。
+- `outputs`: 多个输出项，每项字段与 `output` 相同，可以分别指定 `path` / `dir` / `target` / `format` / `behavior` / `country` / `asn`。同一个 job 不能同时写 `output` 和 `outputs`。
+- `output.path`: 输出文件路径。
+- `output.dir`: 数据库导出时按 `country` 或 `asn` 拆分文件的目录。
+- `output.country`: GeoIP 数据库导出国家代码或列表，例如 `country: cn` 或 `country: [cn, us]`，省略时导出全部。
+- `output.asn`: ASN 数据库导出 ASN 或列表，例如 `asn: 13335` 或 `asn: [13335, 15169]`，省略时导出全部。
+- `output.target`: 规则输出使用 `mihomo`、`general`、`egern`、`sing-box`；数据库输出使用 `geoip` 或 `asn`。
+- `output.format`: mihomo 使用 `mrs`、`text`、`yaml`；sing-box 使用 `srs`、`json`；egern 使用 `ruleset`；general 使用 `domainset`、`ruleset`、`ipset`；数据库使用 `mmdb`、`sing-db`、`metadb`，其中 `asn` 只支持 `mmdb`。
+- `output.behavior`: 可选，`auto`、`domain`、`ip`、`classical`。`domainset`/`ipset` 不使用该项；mihomo MRS 的 `auto` 会跟随明确的输入类型。
 - `defaults`: 多任务配置的默认值。
+
+GeoIP/ASN 数据库任务支持导出、构建和数据库格式直转：
+
+```yaml
+jobs:
+  - input:
+      path: geoip.mmdb
+      target: geoip
+      format: mmdb
+    outputs:
+      - dir: dist/geoip
+        target: general
+        format: text
+      - dir: dist/geoip-mrs
+        target: mihomo
+        format: mrs
+        behavior: ip
+      - path: dist/geoip.metadb
+        target: geoip
+        format: metadb
+      - path: dist/geoip-cn.metadb
+        target: geoip
+        format: metadb
+        country: cn
+
+  - input:
+      inputs:
+        - country: cn
+          path: dist/geoip/cn.list
+          target: general
+          format: ipset
+        - country: us
+          path: dist/geoip/us.list
+          target: general
+          format: ipset
+    output:
+      path: dist/geoip.mmdb
+      target: geoip
+      format: sing-db
+
+  - input:
+      path: asn.mmdb
+      target: asn
+      format: mmdb
+    outputs:
+      - dir: dist/asn
+        target: general
+        format: ipset
+      - dir: dist/asn-mrs
+        target: mihomo
+        format: mrs
+        behavior: ip
+      - path: dist/asn-13335.mmdb
+        target: asn
+        format: mmdb
+        asn: 13335
+
+  - input:
+      inputs:
+        - asn: 13335
+          path: dist/asn/13335.list
+          target: general
+          format: ipset
+    output:
+      path: dist/asn.mmdb
+      target: asn
+      format: mmdb
+```
+
+导出数据库时，如果使用 `output.dir` 会按 `country` 或 `asn` 拆分文件；省略 `output.country` / `output.asn` 时必须使用 `output.dir` 并导出全部条目。`output.path` 只用于显式指定 `country` / `asn` 后合并这些指定条目；单独输出可写 `country: cn` 或 `asn: 13335`。数据库导出可以接普通规则输出的 `target` / `format` / `behavior`，例如 `general ipset` 或 `mihomo mrs`。DB 直转也可以带 `country` / `asn`，用于重新生成只包含指定条目的数据库。构建 GeoIP 数据库时使用 `input.inputs` 中的 `country` 作为国家代码，可写出 `mmdb`、`sing-db` 或 `metadb`。构建 ASN 数据库时使用 `input.inputs` 中的 `asn`，只支持 `mmdb`。
 
 示例配置见 `examples/`：
 

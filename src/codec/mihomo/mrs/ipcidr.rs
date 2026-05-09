@@ -18,9 +18,22 @@ impl IpCidrSetBuilder {
 
     pub fn insert(&mut self, rule: &str) -> Result<()> {
         let range = parse_prefix(rule)?;
+        self.insert_range(range);
+        Ok(())
+    }
+
+    pub(crate) fn insert_prefix(&mut self, addr: IpAddr, prefix_len: u8) -> Result<()> {
+        let range = match addr {
+            IpAddr::V4(addr) => ipv4_range(addr, prefix_len)?,
+            IpAddr::V6(addr) => ipv6_range(addr, prefix_len)?,
+        };
+        self.insert_range(range);
+        Ok(())
+    }
+
+    fn insert_range(&mut self, range: IpRange) {
         self.ranges.push(range);
         self.count += 1;
-        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -130,6 +143,18 @@ impl IpCidrSet {
         }
         Ok(())
     }
+
+    pub fn for_each_prefix(
+        &self,
+        mut f: impl FnMut(IpAddr, u8) -> io::Result<()>,
+    ) -> io::Result<()> {
+        for range in &self.ranges {
+            for (addr, prefix_len) in range.prefixes() {
+                f(value_to_ip(range.family, addr), prefix_len)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -191,6 +216,17 @@ fn ipv4_range(addr: Ipv4Addr, prefix_len: u8) -> Result<IpRange> {
     if prefix_len > 32 {
         bail!("invalid IPv4 prefix length");
     }
+    Ok(ipv4_range_unchecked(addr, prefix_len))
+}
+
+fn ipv6_range(addr: Ipv6Addr, prefix_len: u8) -> Result<IpRange> {
+    if prefix_len > 128 {
+        bail!("invalid IPv6 prefix length");
+    }
+    Ok(ipv6_range_unchecked(addr, prefix_len))
+}
+
+fn ipv4_range_unchecked(addr: Ipv4Addr, prefix_len: u8) -> IpRange {
     let raw = u32::from(addr) as u128;
     let mask = if prefix_len == 0 {
         0
@@ -199,17 +235,14 @@ fn ipv4_range(addr: Ipv4Addr, prefix_len: u8) -> Result<IpRange> {
     };
     let from = raw & mask;
     let to = from | ((!mask) & u32::MAX as u128);
-    Ok(IpRange {
+    IpRange {
         family: IpFamily::V4,
         from,
         to,
-    })
+    }
 }
 
-fn ipv6_range(addr: Ipv6Addr, prefix_len: u8) -> Result<IpRange> {
-    if prefix_len > 128 {
-        bail!("invalid IPv6 prefix length");
-    }
+fn ipv6_range_unchecked(addr: Ipv6Addr, prefix_len: u8) -> IpRange {
     let raw = u128::from(addr);
     let mask = if prefix_len == 0 {
         0
@@ -218,11 +251,11 @@ fn ipv6_range(addr: Ipv6Addr, prefix_len: u8) -> Result<IpRange> {
     };
     let from = raw & mask;
     let to = from | !mask;
-    Ok(IpRange {
+    IpRange {
         family: IpFamily::V6,
         from,
         to,
-    })
+    }
 }
 
 fn ip_to_as16(family: IpFamily, value: u128) -> [u8; 16] {
@@ -288,6 +321,13 @@ fn format_addr_prefix(family: IpFamily, value: u128, prefix_len: u8) -> String {
     match family {
         IpFamily::V4 => format!("{}/{}", Ipv4Addr::from(value as u32), prefix_len),
         IpFamily::V6 => format!("{}/{}", Ipv6Addr::from(value), prefix_len),
+    }
+}
+
+fn value_to_ip(family: IpFamily, value: u128) -> IpAddr {
+    match family {
+        IpFamily::V4 => IpAddr::V4(Ipv4Addr::from(value as u32)),
+        IpFamily::V6 => IpAddr::V6(Ipv6Addr::from(value)),
     }
 }
 

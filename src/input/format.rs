@@ -14,7 +14,7 @@ impl InputFormat {
         match arg {
             "yaml" => Ok(Self::Yaml),
             "mrs" => Ok(Self::Mrs),
-            "text" => Ok(Self::Text),
+            "text" | "domainset" | "ruleset" | "ipset" => Ok(Self::Text),
             "json" => Ok(Self::Json),
             "srs" => Ok(Self::Srs),
             other => bail!("unsupported input format: {other}"),

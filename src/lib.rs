@@ -8,13 +8,41 @@ mod rules;
 mod target;
 
 pub use api::{
-    ConvertOptions, ConvertResult, SkippedRule, convert_file, convert_files,
-    convert_files_to_path_streaming, convert_payload, convert_rules, default_output_behavior,
-    write_outputs, write_outputs_as, write_outputs_as_owned, write_outputs_as_to_memory_owned,
-    write_outputs_owned, write_outputs_to_memory, write_outputs_to_memory_owned,
+    ConvertOptions, ConvertResult, DbBytesOutput, DbMemoryOutput, FileInput, SkippedRule,
+    build_asn_mmdb_to_memory, build_geoip_mmdb_to_memory, convert_asn_mmdb_file_to_memory,
+    convert_asn_mmdb_file_to_memory_filtered, convert_asn_mmdb_to_memory,
+    convert_asn_mmdb_to_memory_filtered, convert_file, convert_file_inputs,
+    convert_file_inputs_to_path_streaming, convert_files, convert_files_to_path_streaming,
+    convert_geoip_mmdb_file_to_memory, convert_geoip_mmdb_file_to_memory_filtered,
+    convert_geoip_mmdb_to_memory, convert_geoip_mmdb_to_memory_filtered, convert_payload,
+    convert_rule_set_output, convert_rules, default_output_behavior,
+    export_asn_mmdb_file_to_memory, export_asn_mmdb_to_memory, export_geoip_mmdb_file_to_memory,
+    export_geoip_mmdb_to_memory, write_outputs, write_outputs_as, write_outputs_as_owned,
+    write_outputs_as_to_memory_owned, write_outputs_owned, write_outputs_to_memory,
+    write_outputs_to_memory_owned,
+};
+pub use codec::db::{
+    AsnCidrSet, AsnOutputFile, AsnRuleSet, GeoipCidrSet, GeoipOutputFile, GeoipRuleSet, MmdbFormat,
+    build_asn_mmdb_from_cidrs, build_asn_mmdb_from_paths, build_asn_mmdb_from_rule_sets,
+    build_asn_mmdb_from_rule_sets_to_bytes, build_geoip_mmdb_from_cidrs,
+    build_geoip_mmdb_from_file_names, build_geoip_mmdb_from_paths, build_geoip_mmdb_from_rule_sets,
+    build_geoip_mmdb_from_rule_sets_to_bytes, collect_asn_mmdb_cidrs, collect_asn_mmdb_rule_set,
+    collect_asn_mmdb_rule_set_from_bytes, collect_asn_mmdb_rule_sets,
+    collect_asn_mmdb_rule_sets_from_bytes, collect_geoip_mmdb_cidrs, collect_geoip_mmdb_rule_set,
+    collect_geoip_mmdb_rule_set_from_bytes, collect_geoip_mmdb_rule_sets,
+    collect_geoip_mmdb_rule_sets_from_bytes, convert_asn_mmdb, convert_asn_mmdb_file_to_bytes,
+    convert_asn_mmdb_to_bytes, convert_geoip_mmdb, convert_geoip_mmdb_file_to_bytes,
+    convert_geoip_mmdb_file_to_bytes_filtered, convert_geoip_mmdb_filtered,
+    convert_geoip_mmdb_to_bytes, convert_geoip_mmdb_to_bytes_filtered,
+    export_asn_mmdb_ipset_to_path, export_asn_mmdb_mrs_to_path, export_asn_mmdb_to_dir,
+    export_geoip_mmdb_ipset_to_path, export_geoip_mmdb_mrs_to_path, export_geoip_mmdb_to_dir,
+    list_asn_mmdb_asns, list_asn_mmdb_asns_from_bytes, list_geoip_mmdb_countries,
+    list_geoip_mmdb_countries_from_bytes,
 };
 #[cfg(feature = "config")]
-pub use config::{ConfigJob, load_config};
+pub use config::{
+    ConfigJob, DbConfigJob, DbExportOutput, DbInputPath, DbTarget, RuleConfigJob, load_config,
+};
 pub use input::{InputFormat, InputSource, load_rules, load_rules_as, parse_input};
 pub use output::{
     Behavior, MemoryOutput, OutputFile, OutputFormat, OutputTarget, RuleSetOutput,

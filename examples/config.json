@@ -7,53 +7,58 @@
   },
   "jobs": [
     {
-      "input": "rules/mihomo/*.yaml",
-      "output": "dist/ad.mrs"
+      "input": { "path": "rules/mihomo/*.yaml" },
+      "output": { "path": "dist/ad.mrs" }
     },
     {
-      "input": ["rules/mihomo/privacy.yaml", "rules/mihomo/reject.yaml"],
-      "output": "dist/reject.list",
-      "output_target": "general",
-      "output_format": "ruleset",
-      "output_behavior": "classical"
+      "input": { "inputs": ["rules/mihomo/privacy.yaml", { "path": "rules/mihomo/reject.yaml" }] },
+      "output": { "path": "dist/reject.list", "target": "general", "format": "ruleset", "behavior": "classical" }
     },
     {
-      "input": "rules/mihomo/mixed.list",
-      "output": "dist/mixed.list",
-      "input_target": "general",
-      "input_format": "text",
-      "input_behavior": "classical",
-      "output_target": "general",
-      "output_format": "ruleset",
-      "output_behavior": "classical"
+      "input": { "path": "rules/mihomo/mixed.list", "target": "general", "format": "text", "behavior": "classical" },
+      "outputs": [
+        { "path": "dist/mixed.list", "target": "general", "format": "ruleset", "behavior": "classical" },
+        { "path": "dist/sing-box.srs", "target": "sing-box", "format": "srs", "behavior": "classical" }
+      ]
     },
     {
-      "input": "rules/mihomo/mixed.list",
-      "output": "dist/sing-box.srs",
-      "input_target": "general",
-      "input_format": "text",
-      "input_behavior": "classical",
-      "output_target": "sing-box",
-      "output_format": "srs",
-      "output_behavior": "classical"
+      "input": { "path": "rules/domains.list", "target": "general", "format": "text", "behavior": "domain" },
+      "output": { "path": "dist/domains.list", "target": "general", "format": "domainset", "behavior": "domain" }
     },
     {
-      "input": "rules/domains.list",
-      "output": "dist/domains.list",
-      "input_target": "general",
-      "input_format": "text",
-      "input_behavior": "domain",
-      "output_target": "general",
-      "output_format": "domainset",
-      "output_behavior": "domain"
+      "input": { "path": "rules/egern.yaml", "target": "egern", "format": "yaml" },
+      "output": { "path": "dist/egern.mrs", "target": "mihomo", "format": "mrs" }
     },
     {
-      "input": "rules/egern.yaml",
-      "output": "dist/egern.mrs",
-      "input_target": "egern",
-      "input_format": "yaml",
-      "output_target": "mihomo",
-      "output_format": "mrs"
+      "input": { "path": "geoip.mmdb", "target": "geoip", "format": "mmdb" },
+      "outputs": [
+        { "dir": "dist/geoip", "target": "general", "format": "text" },
+        { "dir": "dist/geoip-mrs", "target": "mihomo", "format": "mrs", "behavior": "ip" },
+        { "path": "dist/geoip.metadb", "target": "geoip", "format": "metadb" },
+        { "path": "dist/geoip-cn.metadb", "target": "geoip", "format": "metadb", "country": "cn" }
+      ]
+    },
+    {
+      "input": { "inputs": [
+        { "country": "cn", "path": "dist/geoip/cn.list", "target": "general", "format": "ipset" },
+        { "country": "us", "path": "dist/geoip/us.list", "target": "general", "format": "ipset" }
+      ] },
+      "output": { "path": "dist/geoip.mmdb", "target": "geoip", "format": "sing-db" }
+    },
+    {
+      "input": { "path": "asn.mmdb", "target": "asn", "format": "mmdb" },
+      "outputs": [
+        { "dir": "dist/asn", "target": "general", "format": "ipset" },
+        { "dir": "dist/asn-mrs", "target": "mihomo", "format": "mrs", "behavior": "ip" },
+        { "path": "dist/asn-13335.mmdb", "target": "asn", "format": "mmdb", "asn": 13335 }
+      ]
+    },
+    {
+      "input": { "inputs": [
+        { "asn": 13335, "path": "dist/asn/13335.list", "target": "general", "format": "ipset" },
+        { "asn": 15169, "path": "dist/asn/15169.list", "target": "general", "format": "ipset" }
+      ] },
+      "output": { "path": "dist/asn.mmdb", "target": "asn", "format": "mmdb" }
     }
   ]
 }

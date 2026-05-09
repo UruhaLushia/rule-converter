@@ -22,6 +22,9 @@ use crate::rules::{
     classical_to_ipcidr, classical_to_provider_rule, looks_classical,
 };
 
+mod db;
+pub use db::*;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ConvertOptions {
     pub input_target: Option<RuleTarget>,
@@ -30,6 +33,25 @@ pub struct ConvertOptions {
     pub output_target: RuleTarget,
     pub output_format: OutputFormat,
     pub output_behavior: BehaviorMode,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FileInput {
+    pub path: PathBuf,
+    pub target: Option<RuleTarget>,
+    pub format: Option<InputFormat>,
+    pub behavior: InputBehaviorMode,
+}
+
+impl FileInput {
+    pub fn path(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            target: None,
+            format: None,
+            behavior: InputBehaviorMode::Auto,
+        }
+    }
 }
 
 impl Default for ConvertOptions {
@@ -199,9 +221,19 @@ where
     P: AsRef<Path>,
     I: IntoIterator<Item = P>,
 {
+    let inputs = paths
+        .into_iter()
+        .map(|path| FileInput::path(path.as_ref()))
+        .collect::<Vec<_>>();
+    convert_file_inputs(inputs, options)
+}
+
+pub fn convert_file_inputs<I>(inputs: I, options: ConvertOptions) -> Result<ConvertResult>
+where
+    I: IntoIterator<Item = FileInput>,
+{
     let options = normalize_options(options);
-    let paths = expand_file_paths(paths)?;
-    let detected = detect_file_inputs(&paths, options)?;
+    let (paths, detected) = detect_configured_file_inputs(inputs, options)?;
     if let Some(result) = convert_single_mrs_file_fast_path(&paths, &detected, options)? {
         return Ok(result);
     }
@@ -250,9 +282,23 @@ where
     P: AsRef<Path>,
     I: IntoIterator<Item = P>,
 {
+    let inputs = paths
+        .into_iter()
+        .map(|path| FileInput::path(path.as_ref()))
+        .collect::<Vec<_>>();
+    convert_file_inputs_to_path_streaming(inputs, output, options)
+}
+
+pub fn convert_file_inputs_to_path_streaming<I>(
+    inputs: I,
+    output: impl AsRef<Path>,
+    options: ConvertOptions,
+) -> Result<Option<(Vec<OutputFile>, Vec<SkippedRule>)>>
+where
+    I: IntoIterator<Item = FileInput>,
+{
     let options = normalize_options(options);
-    let paths = expand_file_paths(paths)?;
-    let detected = detect_file_inputs(&paths, options)?;
+    let (paths, detected) = detect_configured_file_inputs(inputs, options)?;
     let input_behavior = merge_input_behavior(detected.iter().copied());
     let output_behavior = resolve_output_behavior(options, input_behavior)?;
     let options = options_with_output_behavior(options, output_behavior);
@@ -561,39 +607,62 @@ fn rule_set_matches_behavior(rule_set: &RuleSetOutput, output_behavior: Behavior
     )
 }
 
-fn detect_file_inputs(paths: &[PathBuf], options: ConvertOptions) -> Result<Vec<DetectedInput>> {
+fn detect_configured_file_inputs<I>(
+    inputs: I,
+    options: ConvertOptions,
+) -> Result<(Vec<PathBuf>, Vec<DetectedInput>)>
+where
+    I: IntoIterator<Item = FileInput>,
+{
+    let mut paths = Vec::new();
+    let mut detected = Vec::new();
+
+    for input in inputs {
+        let expanded = expand_file_paths([input.path])?;
+        for path in expanded {
+            let input_options = ConvertOptions {
+                input_target: input.target.or(options.input_target),
+                input_format: input.format.or(options.input_format),
+                input_behavior: if input.behavior == InputBehaviorMode::Auto {
+                    options.input_behavior
+                } else {
+                    input.behavior
+                },
+                ..options
+            };
+            let item_detected = detect_file_input(&path, input_options)?;
+            paths.push(path);
+            detected.push(item_detected);
+        }
+    }
+
+    if paths.is_empty() {
+        bail!("input path expansion did not match any files");
+    }
+    Ok((paths, detected))
+}
+
+fn detect_file_input(path: &Path, options: ConvertOptions) -> Result<DetectedInput> {
     if let (Some(target), Some(format)) = (options.input_target, options.input_format) {
         let behavior = input_behavior_to_output_mode(options.input_behavior);
         if target == RuleTarget::Mihomo
             && format == InputFormat::Mrs
             && behavior == BehaviorMode::Auto
-            && paths.len() > 1
         {
-            return paths
-                .iter()
-                .map(|path| {
-                    detect_path(path).map(|detected| DetectedInput {
-                        target,
-                        format,
-                        behavior: detected.behavior,
-                    })
-                })
-                .collect::<Result<Vec<_>>>();
-        }
-        return Ok(vec![
-            DetectedInput {
+            return detect_path(path).map(|detected| DetectedInput {
                 target,
                 format,
-                behavior,
-            };
-            paths.len()
-        ]);
+                behavior: detected.behavior,
+            });
+        }
+        return Ok(DetectedInput {
+            target,
+            format,
+            behavior,
+        });
     }
 
-    paths
-        .iter()
-        .map(|path| detect_path(path).map(|detected| apply_input_options(detected, options)))
-        .collect::<Result<Vec<_>>>()
+    detect_path(path).map(|detected| apply_input_options(detected, options))
 }
 
 fn apply_input_options(mut detected: DetectedInput, options: ConvertOptions) -> DetectedInput {
@@ -721,6 +790,20 @@ pub fn convert_rules(rules: &[String], behavior: BehaviorMode) -> Result<Convert
         bail!("no supported rules found for the requested conversion");
     }
     Ok(result)
+}
+
+pub fn convert_rule_set_output(
+    rule_set: RuleSetOutput,
+    output_behavior: BehaviorMode,
+) -> ConvertResult {
+    ConvertResult {
+        outputs: vec![rule_set],
+        mixed_rules: RuleTextStore::default(),
+        sing_box_rules: None,
+        output_behavior,
+        no_resolve: false,
+        skipped: Vec::new(),
+    }
 }
 
 pub fn write_outputs(result: &ConvertResult, output: impl AsRef<Path>) -> Result<Vec<OutputFile>> {

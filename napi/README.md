@@ -14,10 +14,11 @@ pnpm --dir napi build
 ```js
 import { writeFileSync } from 'node:fs'
 import {
-  convertPayloadStringToMrs,
-  convertPayloadStringToString,
-  convertFileToBuffer,
-  convertFileToPath,
+  fileToBuf,
+  listAsnNumbers,
+  listGeoipCountries,
+  strToBuf,
+  strToStr,
 } from '@uruhalushia/rule-converter-napi'
 
 const payload = `
@@ -27,7 +28,7 @@ payload:
   - IP-CIDR,192.168.1.0/24,no-resolve
 `
 
-const result = convertPayloadStringToMrs(payload, {
+const mrs = strToBuf(payload, {
   inputTarget: 'mihomo',
   inputFormat: 'yaml',
   inputBehavior: 'classical',
@@ -36,11 +37,9 @@ const result = convertPayloadStringToMrs(payload, {
   outputBehavior: 'domain',
 })
 
-for (const output of result.outputs) {
-  writeFileSync(`${output.behavior}.mrs`, output.bytes)
-}
+writeFileSync('domain.mrs', mrs.outputs.domain)
 
-const text = convertPayloadStringToString(payload, {
+const text = strToStr(payload, {
   inputTarget: 'mihomo',
   inputFormat: 'yaml',
   inputBehavior: 'classical',
@@ -49,71 +48,99 @@ const text = convertPayloadStringToString(payload, {
   outputBehavior: 'classical',
 })
 
-console.log(text.outputs[0].text)
+console.log(text.outputs.classical)
 
-const srs = convertFileToBuffer('rules.yaml', {
+const srs = fileToBuf('rules.yaml', {
   outputTarget: 'sing-box',
   outputFormat: 'srs',
   outputBehavior: 'classical',
 })
 
-writeFileSync('rules.srs', srs.outputs[0].buffer)
+writeFileSync('classical.srs', srs.outputs.classical)
 
-const written = convertFileToPath('rules.yaml', 'dist/rules.list', {
+const geoip = fileToBuf('country.mmdb', {
+  inputTarget: 'geoip',
   outputTarget: 'general',
-  outputFormat: 'ruleset',
-  outputBehavior: 'classical',
+  outputFormat: 'ipset',
+  countries: ['cn'],
 })
 
-console.log(written.outputs)
-```
+writeFileSync('cn.list', geoip.outputs.cn)
 
-Multiple files can be merged by passing a path array, a directory path, or a final-component `*` wildcard:
-
-```js
-convertFileToPath(['/path/rules-a.yaml', '/path/rules-b.yaml'], 'dist/ad.mrs', {
-  outputTarget: 'mihomo',
-  outputFormat: 'mrs',
-  outputBehavior: 'domain',
+const singDb = fileToBuf('country.mmdb', {
+  inputTarget: 'geoip',
+  outputTarget: 'geoip',
+  outputFormat: 'sing-db',
 })
+
+writeFileSync('country.sing.db', singDb.outputs.db)
+
+console.log(listGeoipCountries('country.mmdb'))
+console.log(listAsnNumbers('GeoLite2-ASN.mmdb'))
 ```
+
+`outputs` is a name-keyed object. Rule output keys are usually behavior names such as `domain`, `ip`, or `classical`. DB export keys are country codes, ASN numbers, or `db` for a generated database.
 
 ## API
 
-- `convertPayloadToMrs(payload, options?)`: accepts `Uint8Array` and returns generated MRS files in memory.
-- `convertPayloadStringToMrs(payload, options?)`: accepts a string and returns generated MRS files in memory.
-- `convertFileToMrs(input, options?)`: reads one file, directory, wildcard, or path array and returns generated MRS files in memory.
-- `convertPayloadToBuffer(payload, options?)`: accepts `Uint8Array` and returns generated files as Node.js `Buffer` objects in memory.
-- `convertPayloadStringToBuffer(payload, options?)`: accepts a string and returns generated files as Node.js `Buffer` objects in memory.
-- `convertFileToBuffer(input, options?)`: reads one file, directory, wildcard, or path array and returns generated files as Node.js `Buffer` objects in memory.
-- `convertPayloadToString(payload, options?)`: accepts `Uint8Array` and returns generated text output as strings.
-- `convertPayloadStringToString(payload, options?)`: accepts a string and returns generated text output as strings.
-- `convertFileToString(input, options?)`: reads one file, directory, wildcard, or path array and returns generated text output as strings.
-- `convertFileToPath(input, output, options?)`: writes converted outputs to disk.
+- `bufToBuf(input, options?)`: converts a `Uint8Array` payload and returns byte outputs.
+- `strToBuf(input, options?)`: converts a string payload and returns byte outputs.
+- `fileToBuf(input, options?)`: converts one input file path and returns byte outputs.
+- `bufToStr(input, options?)`: converts a `Uint8Array` payload and returns UTF-8 text outputs.
+- `strToStr(input, options?)`: converts a string payload and returns UTF-8 text outputs.
+- `fileToStr(input, options?)`: converts one input file path and returns UTF-8 text outputs.
+- `listGeoipCountries(input)`: reads a GeoIP MMDB file path and returns sorted country codes.
+- `listGeoipCountriesFromBuffer(input)`: reads GeoIP MMDB bytes and returns sorted country codes.
+- `listAsnNumbers(input)`: reads an ASN MMDB file path and returns sorted ASN numbers.
+- `listAsnNumbersFromBuffer(input)`: reads ASN MMDB bytes and returns sorted ASN numbers.
 
 ```ts
-interface ConvertOptions {
-  inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box'
-  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs'
+interface AnyConvertOptions {
+  inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'asn'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
-  outputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box'
-  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset'
-  outputBehavior?: 'domain' | 'ip' | 'classical'
+  outputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'asn'
+  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb'
+  outputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
+  countries?: string[]
+  asns?: number[]
+  split?: boolean
+  country?: string
+  asn?: number
+}
+
+interface AnyBufferResult {
+  kind: 'rules' | 'db'
+  outputs: Record<string, Uint8Array>
+  info: Record<string, AnyOutputInfo>
+  skipped: SkippedRule[]
+}
+
+interface AnyStringResult {
+  kind: 'rules' | 'db'
+  outputs: Record<string, string>
+  info: Record<string, AnyOutputInfo>
+  skipped: SkippedRule[]
 }
 ```
 
 Defaults:
 
-- `inputTarget`: auto-detected
+- `inputTarget`: auto-detected rule input unless set to `geoip` or `asn`
 - `inputFormat`: auto-detected
 - `inputBehavior`: `auto`
-- `outputTarget`: `mihomo`
-- `outputFormat`: `mrs`
-- `outputBehavior`: `domain`
+- `outputTarget`: `mihomo` for rule input, `general` for DB-to-rules export, or the same DB target for DB conversion
+- `outputFormat`: `mrs` for rule input, `ipset` for DB-to-rules export, or `mmdb` for DB conversion
+- `outputBehavior`: selected from the target/format default
+- `split`: `true` for DB-to-rules export
 
-mihomo MRS output supports only `domain` and `ip`. sing-box JSON/SRS is available with `outputTarget: 'sing-box'` and `outputFormat: 'json' | 'srs'`.
+DB conversions use the same functions as rule conversions:
 
-String output supports text formats only: `text`, `yaml`, `json`, `domainset`, `ruleset`, and `ipset`. Use the buffer functions for binary `mrs` and `srs` output.
+- `inputTarget: 'geoip'`, `outputTarget: 'general' | 'mihomo' | 'egern' | 'sing-box'` exports GeoIP contents as rule sets.
+- `inputTarget: 'asn'`, `outputTarget: 'general' | 'mihomo' | 'egern' | 'sing-box'` exports ASN contents as rule sets.
+- `inputTarget: 'geoip'`, `outputTarget: 'geoip'` converts GeoIP DB bytes to `mmdb`, `sing-db`, or `metadb`.
+- `inputTarget: 'asn'`, `outputTarget: 'asn'` normalizes ASN MMDB bytes. ASN DB output only supports `mmdb`.
+- Rule input can build DB output with `outputTarget: 'geoip'` plus `country`, or `outputTarget: 'asn'` plus `asn`.
 
 `mihomo + text/yaml + domain` uses mihomo/Clash domain wildcard syntax such as `+.example.com`; `general + domainset + domain` uses domain-set syntax where `.example.com` means the domain itself and all subdomains.
 

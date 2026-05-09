@@ -5,50 +5,124 @@ output_format = "mrs"
 output_behavior = "domain"
 
 [[jobs]]
-input = "rules/mihomo/*.yaml"
-output = "dist/ad.mrs"
+[jobs.input]
+path = "rules/mihomo/*.yaml"
+[jobs.output]
+path = "dist/ad.mrs"
 
 [[jobs]]
-input = ["rules/mihomo/privacy.yaml", "rules/mihomo/reject.yaml"]
-output = "dist/reject.list"
-output_target = "general"
-output_format = "ruleset"
-output_behavior = "classical"
+[jobs.input]
+inputs = [
+  { path = "rules/mihomo/privacy.yaml" },
+  { path = "rules/mihomo/reject.yaml" },
+]
+[jobs.output]
+path = "dist/reject.list"
+target = "general"
+format = "ruleset"
+behavior = "classical"
 
 [[jobs]]
-input = "rules/mihomo/mixed.list"
-output = "dist/mixed.list"
-input_target = "general"
-input_format = "text"
-input_behavior = "classical"
-output_target = "general"
-output_format = "ruleset"
-output_behavior = "classical"
+[jobs.input]
+path = "rules/mihomo/mixed.list"
+target = "general"
+format = "text"
+behavior = "classical"
+[[jobs.outputs]]
+path = "dist/mixed.list"
+target = "general"
+format = "ruleset"
+behavior = "classical"
+[[jobs.outputs]]
+path = "dist/sing-box.srs"
+target = "sing-box"
+format = "srs"
+behavior = "classical"
 
 [[jobs]]
-input = "rules/mihomo/mixed.list"
-output = "dist/sing-box.srs"
-input_target = "general"
-input_format = "text"
-input_behavior = "classical"
-output_target = "sing-box"
-output_format = "srs"
-output_behavior = "classical"
+[jobs.input]
+path = "rules/domains.list"
+target = "general"
+format = "text"
+behavior = "domain"
+[jobs.output]
+path = "dist/domains.list"
+target = "general"
+format = "domainset"
+behavior = "domain"
 
 [[jobs]]
-input = "rules/domains.list"
-output = "dist/domains.list"
-input_target = "general"
-input_format = "text"
-input_behavior = "domain"
-output_target = "general"
-output_format = "domainset"
-output_behavior = "domain"
+[jobs.input]
+path = "rules/egern.yaml"
+target = "egern"
+format = "yaml"
+[jobs.output]
+path = "dist/egern.mrs"
+target = "mihomo"
+format = "mrs"
 
 [[jobs]]
-input = "rules/egern.yaml"
-output = "dist/egern.mrs"
-input_target = "egern"
-input_format = "yaml"
-output_target = "mihomo"
-output_format = "mrs"
+[jobs.input]
+path = "geoip.mmdb"
+target = "geoip"
+format = "mmdb"
+[[jobs.outputs]]
+dir = "dist/geoip"
+target = "general"
+format = "text"
+[[jobs.outputs]]
+dir = "dist/geoip-mrs"
+target = "mihomo"
+format = "mrs"
+behavior = "ip"
+[[jobs.outputs]]
+path = "dist/geoip.metadb"
+target = "geoip"
+format = "metadb"
+[[jobs.outputs]]
+path = "dist/geoip-cn.metadb"
+target = "geoip"
+format = "metadb"
+country = "cn"
+
+[[jobs]]
+[jobs.input]
+inputs = [
+  { country = "cn", path = "dist/geoip/cn.list", target = "general", format = "ipset" },
+  { country = "us", path = "dist/geoip/us.list", target = "general", format = "ipset" },
+]
+[jobs.output]
+path = "dist/geoip.mmdb"
+target = "geoip"
+format = "sing-db"
+
+[[jobs]]
+[jobs.input]
+path = "asn.mmdb"
+target = "asn"
+format = "mmdb"
+[[jobs.outputs]]
+dir = "dist/asn"
+target = "general"
+format = "ipset"
+[[jobs.outputs]]
+dir = "dist/asn-mrs"
+target = "mihomo"
+format = "mrs"
+behavior = "ip"
+[[jobs.outputs]]
+path = "dist/asn-13335.mmdb"
+target = "asn"
+format = "mmdb"
+asn = 13335
+
+[[jobs]]
+[jobs.input]
+inputs = [
+  { asn = 13335, path = "dist/asn/13335.list", target = "general", format = "ipset" },
+  { asn = 15169, path = "dist/asn/15169.list", target = "general", format = "ipset" },
+]
+[jobs.output]
+path = "dist/asn.mmdb"
+target = "asn"
+format = "mmdb"
