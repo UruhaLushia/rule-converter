@@ -43,7 +43,7 @@ pub fn write_rule_sets_to_memory(
         if count == 0 {
             bail!("no supported rules found for the requested conversion");
         }
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(estimate_rule_sets_bytes(outputs, format));
         egern::write_rulesets_yaml_with_options(&mut bytes, outputs, no_resolve)?;
         return Ok(vec![MemoryOutput {
             behavior: Behavior::Domain,
@@ -54,7 +54,7 @@ pub fn write_rule_sets_to_memory(
     }
 
     if rule_target == RuleTarget::General {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(estimate_rule_sets_bytes(outputs, format));
         let mut count = 0usize;
         for rule_set in outputs {
             if should_write_general_rule_set(rule_set, behavior, format) {
@@ -75,7 +75,7 @@ pub fn write_rule_sets_to_memory(
 
     let mut out = Vec::new();
     for rule_set in outputs {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(estimate_rule_set_bytes(rule_set, format));
         write_rule_set_to_memory(&mut bytes, rule_set, rule_target, format, no_resolve)?;
         out.push(MemoryOutput {
             behavior: rule_set.behavior(),
@@ -180,7 +180,7 @@ fn write_mixed_rules_to_memory(
     rules: &RuleTextStore,
     format: OutputFormat,
 ) -> Result<Vec<MemoryOutput>> {
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::with_capacity(estimate_text_rules_bytes(rules.len(), format));
     match format {
         OutputFormat::Text => generic::text::write_plain_rules(&mut bytes, rules.iter())?,
         OutputFormat::Yaml => mihomo::write_payload_yaml(&mut bytes, rules.iter())?,
@@ -345,5 +345,26 @@ fn should_write_general_rule_set(
             BehaviorMode::Auto | BehaviorMode::Classical => true,
         },
         _ => true,
+    }
+}
+
+fn estimate_rule_sets_bytes(outputs: &[RuleSetOutput], format: OutputFormat) -> usize {
+    outputs
+        .iter()
+        .map(|rule_set| estimate_rule_set_bytes(rule_set, format))
+        .sum()
+}
+
+fn estimate_rule_set_bytes(rule_set: &RuleSetOutput, format: OutputFormat) -> usize {
+    estimate_text_rules_bytes(rule_set.count(), format)
+}
+
+fn estimate_text_rules_bytes(count: usize, format: OutputFormat) -> usize {
+    match format {
+        OutputFormat::Yaml | OutputFormat::RuleSet => 16 + count.saturating_mul(24),
+        OutputFormat::Text | OutputFormat::DomainSet | OutputFormat::IpSet => {
+            count.saturating_mul(20)
+        }
+        OutputFormat::Mrs | OutputFormat::Json | OutputFormat::Srs => 0,
     }
 }

@@ -20,7 +20,6 @@ function shouldCheckVersion() {
 function requireLocal(tuple) {
   const filename = join(__dirname, `${binaryName}.${tuple}.node`)
   if (!existsSync(filename)) {
-    loadErrors.push(new Error(`Native binding not found: ${filename}`))
     return null
   }
   try {

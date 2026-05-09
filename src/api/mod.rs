@@ -193,13 +193,11 @@ where
     let options = normalize_options(options);
     let paths = expand_file_paths(paths)?;
     let detected = detect_file_inputs(&paths, options)?;
-    let input_behavior = merge_input_behavior(detected.iter().copied());
-    let output_behavior = resolve_output_behavior(options, input_behavior)?;
-    if let Some(result) =
-        convert_single_mrs_file_fast_path(&paths, &detected, options, output_behavior)?
-    {
+    if let Some(result) = convert_single_mrs_file_fast_path(&paths, &detected, options)? {
         return Ok(result);
     }
+    let input_behavior = merge_input_behavior(detected.iter().copied());
+    let output_behavior = resolve_output_behavior(options, input_behavior)?;
     let options = options_with_output_behavior(options, output_behavior);
     let input_target = merge_input_target(detected.iter().copied());
     let converter = converter_for_options(input_behavior, input_target, options);
@@ -233,7 +231,6 @@ fn convert_single_mrs_file_fast_path(
     paths: &[PathBuf],
     detected: &[DetectedInput],
     options: ConvertOptions,
-    output_behavior: BehaviorMode,
 ) -> Result<Option<ConvertResult>> {
     if paths.len() != 1 {
         return Ok(None);
@@ -244,13 +241,18 @@ fn convert_single_mrs_file_fast_path(
     if detected.target != RuleTarget::Mihomo || detected.format != InputFormat::Mrs {
         return Ok(None);
     }
-    if !can_reuse_mrs_rule_set(options, output_behavior, detected) {
-        return Ok(None);
-    }
 
     let file = File::open(&paths[0])
         .with_context(|| format!("failed to read input {}", paths[0].display()))?;
     let rule_set = read_mrs_stream(file)?;
+    let input_behavior = match rule_set.behavior() {
+        Behavior::Domain => InputBehaviorMode::Domain,
+        Behavior::Ipcidr => InputBehaviorMode::Ipcidr,
+    };
+    let output_behavior = resolve_output_behavior(options, input_behavior)?;
+    if !can_reuse_mrs_rule_set(options, output_behavior) {
+        return Ok(None);
+    }
     if !rule_set_matches_behavior(&rule_set, output_behavior) {
         return Ok(None);
     }
@@ -265,14 +267,7 @@ fn convert_single_mrs_file_fast_path(
     }))
 }
 
-fn can_reuse_mrs_rule_set(
-    options: ConvertOptions,
-    output_behavior: BehaviorMode,
-    detected: DetectedInput,
-) -> bool {
-    if detected.behavior == BehaviorMode::Auto {
-        return false;
-    }
+fn can_reuse_mrs_rule_set(options: ConvertOptions, output_behavior: BehaviorMode) -> bool {
     if options.output_target == RuleTarget::Mihomo
         && matches!(
             options.output_format,
@@ -307,6 +302,7 @@ fn detect_file_inputs(paths: &[PathBuf], options: ConvertOptions) -> Result<Vec<
         if target == RuleTarget::Mihomo
             && format == InputFormat::Mrs
             && behavior == BehaviorMode::Auto
+            && paths.len() > 1
         {
             return paths
                 .iter()
