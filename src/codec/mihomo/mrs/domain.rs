@@ -250,29 +250,27 @@ impl DomainSet {
         }
 
         let index = LoudsIndex::new(&self.label_bitmap);
-        let mut wildcard = Vec::new();
+        let mut rule = String::new();
         self.visit_reversed_keys(&mut Vec::new(), &mut |reversed| {
             if let Some(suffix_reversed) = reversed.strip_suffix(b".+") {
-                let Some(suffix) = reversed_key_to_rule(suffix_reversed) else {
-                    return Ok(());
-                };
-                let rule = if self.contains_reversed_key(suffix_reversed, &index) {
-                    format!("+.{suffix}")
+                if self.contains_reversed_key(suffix_reversed, &index) {
+                    if !reversed_key_to_rule_buf_prefixed(suffix_reversed, "+.", &mut rule) {
+                        return Ok(());
+                    }
                 } else {
-                    format!(".{suffix}")
-                };
+                    if !reversed_key_to_rule_buf_prefixed(suffix_reversed, ".", &mut rule) {
+                        return Ok(());
+                    }
+                }
                 f(&rule)?;
             } else {
-                wildcard.clear();
-                wildcard.extend_from_slice(reversed);
-                wildcard.extend_from_slice(b".+");
-                if self.contains_reversed_key(&wildcard, &index) {
+                if self.contains_reversed_key_with_suffix(reversed, b".+", &index) {
                     return Ok(());
                 }
-                let Some(key) = reversed_key_to_rule(reversed) else {
+                if !reversed_key_to_rule_buf(reversed, &mut rule) {
                     return Ok(());
-                };
-                f(&key)?;
+                }
+                f(&rule)?;
             }
             Ok(())
         })
@@ -284,21 +282,18 @@ impl DomainSet {
         }
 
         let index = LoudsIndex::new(&self.label_bitmap);
-        let mut wildcard = Vec::new();
+        let mut rule = String::new();
         self.visit_reversed_keys(&mut Vec::new(), &mut |reversed| {
             if reversed.ends_with(b".+") {
                 return Ok(());
             }
-            wildcard.clear();
-            wildcard.extend_from_slice(reversed);
-            wildcard.extend_from_slice(b".+");
-            if self.contains_reversed_key(&wildcard, &index) {
+            if self.contains_reversed_key_with_suffix(reversed, b".+", &index) {
                 return Ok(());
             }
-            let Some(key) = reversed_key_to_rule(reversed) else {
+            if !reversed_key_to_rule_buf(reversed, &mut rule) {
                 return Ok(());
-            };
-            f(&key)?;
+            }
+            f(&rule)?;
             Ok(())
         })
     }
@@ -307,20 +302,25 @@ impl DomainSet {
         &self,
         mut f: impl FnMut(&str) -> io::Result<()>,
     ) -> io::Result<()> {
+        let mut rule = String::new();
         self.visit_reversed_keys(&mut Vec::new(), &mut |reversed| {
-            if let Some(suffix) = reversed_suffix_to_rule(reversed) {
-                f(&suffix)?;
+            if let Some(reversed) = reversed.strip_suffix(b".+") {
+                if !reversed_key_to_rule_buf(reversed, &mut rule) {
+                    return Ok(());
+                }
+                f(&rule)?;
             }
             Ok(())
         })
     }
 
     fn for_each_raw_rule(&self, mut f: impl FnMut(&str) -> io::Result<()>) -> io::Result<()> {
+        let mut rule = String::new();
         self.visit_reversed_keys(&mut Vec::new(), &mut |reversed| {
-            let Some(key) = reversed_key_to_rule(reversed) else {
+            if !reversed_key_to_rule_buf(reversed, &mut rule) {
                 return Ok(());
             };
-            f(&key)
+            f(&rule)
         })
     }
 
@@ -334,10 +334,19 @@ impl DomainSet {
     }
 
     fn contains_reversed_key(&self, key: &[u8], index: &LoudsIndex<'_>) -> bool {
+        self.contains_reversed_key_with_suffix(key, b"", index)
+    }
+
+    fn contains_reversed_key_with_suffix(
+        &self,
+        key: &[u8],
+        suffix: &[u8],
+        index: &LoudsIndex<'_>,
+    ) -> bool {
         let mut node_id = 0usize;
         let mut bm_idx = 0usize;
 
-        for byte in key {
+        for byte in key.iter().chain(suffix) {
             let mut idx = bm_idx;
             let (next_node_id, next_bm_idx) = loop {
                 if get_bit(&self.label_bitmap, idx) != 0 {
@@ -435,18 +444,18 @@ fn validate_domain_tail(domain: &str, empty_error: &str) -> Result<()> {
     Ok(())
 }
 
-fn reverse_runes(value: &str) -> String {
-    value.chars().rev().collect()
+fn reversed_key_to_rule_buf(reversed: &[u8], out: &mut String) -> bool {
+    reversed_key_to_rule_buf_prefixed(reversed, "", out)
 }
 
-fn reversed_key_to_rule(reversed: &[u8]) -> Option<String> {
-    let reversed = String::from_utf8(reversed.to_vec()).ok()?;
-    Some(reverse_runes(&reversed))
-}
-
-fn reversed_suffix_to_rule(reversed: &[u8]) -> Option<String> {
-    let reversed = reversed.strip_suffix(b".+")?;
-    reversed_key_to_rule(reversed)
+fn reversed_key_to_rule_buf_prefixed(reversed: &[u8], prefix: &str, out: &mut String) -> bool {
+    let Ok(reversed) = std::str::from_utf8(reversed) else {
+        return false;
+    };
+    out.clear();
+    out.push_str(prefix);
+    out.extend(reversed.chars().rev());
+    true
 }
 
 fn set_bit(bitmap: &mut Vec<u64>, index: usize, value: u64) {
@@ -463,20 +472,24 @@ fn get_bit(bitmap: &[u64], index: usize) -> u64 {
 struct LoudsIndex<'a> {
     words: &'a [u64],
     ones_before_word: Vec<usize>,
-    one_positions: Vec<u32>,
+    sampled_one_positions: Vec<u32>,
 }
 
 impl<'a> LoudsIndex<'a> {
+    const SELECT_SAMPLE_STEP: usize = 4;
+
     fn new(bitmap: &'a [u64]) -> Self {
         let mut ones_before_word = Vec::with_capacity(bitmap.len() + 1);
-        let mut one_positions = Vec::new();
+        let mut sampled_one_positions = Vec::new();
         let mut ones = 0usize;
         for (word_index, word) in bitmap.iter().copied().enumerate() {
             ones_before_word.push(ones);
             let mut word_bits = word;
             while word_bits != 0 {
                 let bit = word_bits.trailing_zeros() as usize;
-                one_positions.push((word_index * 64 + bit) as u32);
+                if ones % Self::SELECT_SAMPLE_STEP == 0 {
+                    sampled_one_positions.push((word_index * 64 + bit) as u32);
+                }
                 word_bits &= word_bits - 1;
                 ones += 1;
             }
@@ -485,7 +498,7 @@ impl<'a> LoudsIndex<'a> {
         Self {
             words: bitmap,
             ones_before_word,
-            one_positions,
+            sampled_one_positions,
         }
     }
 
@@ -494,7 +507,14 @@ impl<'a> LoudsIndex<'a> {
     }
 
     fn select_ith_one(&self, target: usize) -> usize {
-        self.one_positions[target] as usize
+        let sample_index = target / Self::SELECT_SAMPLE_STEP;
+        let mut position = self.sampled_one_positions[sample_index] as usize;
+        let mut remaining = target - sample_index * Self::SELECT_SAMPLE_STEP;
+        while remaining > 0 {
+            position = next_one_position(self.words, position + 1);
+            remaining -= 1;
+        }
+        position
     }
 
     fn count_ones_before(&self, index: usize) -> usize {
@@ -506,6 +526,19 @@ impl<'a> LoudsIndex<'a> {
         }
         let mask = (1u64 << bit) - 1;
         before + (self.words[word] & mask).count_ones() as usize
+    }
+}
+
+fn next_one_position(words: &[u64], start: usize) -> usize {
+    let mut word_index = start >> 6;
+    let bit = start & 63;
+    let mut word = words[word_index] & (!0u64 << bit);
+    loop {
+        if word != 0 {
+            return word_index * 64 + word.trailing_zeros() as usize;
+        }
+        word_index += 1;
+        word = words[word_index];
     }
 }
 
