@@ -5,22 +5,16 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
-import packageJson from './package.json' with { type: 'json' }
 
 const require = createRequire(import.meta.url)
 const __dirname = new URL('.', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 
 const packageName = '@uruhalushia/rule-converter-napi'
-const packageVersion = packageJson.version
 const binaryName = 'rule-converter'
 const loadErrors = []
 
-function isMusl() {
-  try {
-    return require('node:child_process').execSync('ldd --version', { encoding: 'utf8' }).includes('musl')
-  } catch (_) {
-    return false
-  }
+function shouldCheckVersion() {
+  return process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0'
 }
 
 function requireLocal(tuple) {
@@ -41,14 +35,9 @@ function requirePackage(tuple) {
   const nativePackage = `${packageName}-${tuple}`
   try {
     const binding = require(nativePackage)
-    const bindingPackageVersion = require(`${nativePackage}/package.json`).version
-    if (
-      bindingPackageVersion !== packageVersion &&
-      process.env.NAPI_RS_ENFORCE_VERSION_CHECK &&
-      process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0'
-    ) {
+    if (shouldCheckVersion() && require(`${nativePackage}/package.json`).version !== require('./package.json').version) {
       throw new Error(
-        `Native binding package version mismatch, expected ${packageVersion} but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`,
+        `Native binding package version mismatch. You can reinstall dependencies to fix this issue.`,
       )
     }
     return binding
@@ -60,6 +49,13 @@ function requirePackage(tuple) {
 
 function requireBinding(tuple) {
   return requireLocal(tuple) || requirePackage(tuple)
+}
+
+function requireLinuxBinding(gnuTuple, muslTuple) {
+  if (existsSync('/etc/alpine-release')) {
+    return requireBinding(muslTuple) || requireBinding(gnuTuple)
+  }
+  return requireBinding(gnuTuple) || requireBinding(muslTuple)
 }
 
 function requireNative() {
@@ -78,11 +74,10 @@ function requireNative() {
     if (process.arch === 'x64') return requireBinding('darwin-x64')
     if (process.arch === 'arm64') return requireBinding('darwin-arm64')
   } else if (process.platform === 'linux') {
-    const musl = isMusl()
-    if (process.arch === 'x64') return requireBinding(musl ? 'linux-x64-musl' : 'linux-x64-gnu')
-    if (process.arch === 'arm64') return requireBinding(musl ? 'linux-arm64-musl' : 'linux-arm64-gnu')
-    if (process.arch === 'riscv64') return requireBinding(musl ? 'linux-riscv64-musl' : 'linux-riscv64-gnu')
-    if (process.arch === 'loong64') return requireBinding(musl ? 'linux-loong64-musl' : 'linux-loong64-gnu')
+    if (process.arch === 'x64') return requireLinuxBinding('linux-x64-gnu', 'linux-x64-musl')
+    if (process.arch === 'arm64') return requireLinuxBinding('linux-arm64-gnu', 'linux-arm64-musl')
+    if (process.arch === 'riscv64') return requireLinuxBinding('linux-riscv64-gnu', 'linux-riscv64-musl')
+    if (process.arch === 'loong64') return requireLinuxBinding('linux-loong64-gnu', 'linux-loong64-musl')
   }
 
   loadErrors.push(new Error(`Unsupported OS or architecture: ${process.platform} ${process.arch}`))

@@ -26,40 +26,60 @@ impl RuleSetOutput {
 pub fn read_mrs(raw: &[u8]) -> Result<RuleSetOutput> {
     let mut decoder =
         zstd::stream::Decoder::new(Cursor::new(raw)).context("failed to create zstd decoder")?;
+    read_mrs_from(&mut decoder)
+}
 
+pub fn read_mrs_stream<R: Read>(reader: R) -> Result<RuleSetOutput> {
+    let mut decoder =
+        zstd::stream::Decoder::new(reader).context("failed to create zstd decoder")?;
+    read_mrs_from(&mut decoder)
+}
+
+pub fn read_mrs_behavior(raw: &[u8]) -> Result<Behavior> {
+    let mut decoder =
+        zstd::stream::Decoder::new(Cursor::new(raw)).context("failed to create zstd decoder")?;
+    read_mrs_header(&mut decoder).map(|(behavior, _)| behavior)
+}
+
+pub fn read_mrs_behavior_stream<R: Read>(reader: R) -> Result<Behavior> {
+    let mut decoder =
+        zstd::stream::Decoder::new(reader).context("failed to create zstd decoder")?;
+    read_mrs_header(&mut decoder).map(|(behavior, _)| behavior)
+}
+
+fn read_mrs_from<R: Read>(reader: &mut R) -> Result<RuleSetOutput> {
+    let (behavior, count) = read_mrs_header(reader)?;
+
+    match behavior {
+        Behavior::Domain => Ok(RuleSetOutput::Domain(DomainSet::read_bin(reader, count)?)),
+        Behavior::Ipcidr => Ok(RuleSetOutput::Ipcidr(IpCidrSet::read_bin(reader, count)?)),
+    }
+}
+
+fn read_mrs_header<R: Read>(reader: &mut R) -> Result<(Behavior, usize)> {
     let mut magic = [0; 4];
-    decoder.read_exact(&mut magic)?;
+    reader.read_exact(&mut magic)?;
     if &magic != MRS_MAGIC {
         bail!("invalid MRS magic bytes");
     }
 
     let mut behavior = [0; 1];
-    decoder.read_exact(&mut behavior)?;
+    reader.read_exact(&mut behavior)?;
     let behavior = Behavior::from_byte(behavior[0]).context("unsupported MRS behavior")?;
-    let count = read_i64_from(&mut decoder)?;
+    let count = read_i64_from(reader)?;
     if count < 0 {
         bail!("invalid MRS rule count");
     }
 
-    let extra_len = read_i64_from(&mut decoder)?;
+    let extra_len = read_i64_from(reader)?;
     if extra_len < 0 {
         bail!("invalid MRS extra length");
     }
     if extra_len > 0 {
         let mut extra = vec![0; extra_len as usize];
-        decoder.read_exact(&mut extra)?;
+        reader.read_exact(&mut extra)?;
     }
-
-    match behavior {
-        Behavior::Domain => Ok(RuleSetOutput::Domain(DomainSet::read_bin(
-            &mut decoder,
-            count as usize,
-        )?)),
-        Behavior::Ipcidr => Ok(RuleSetOutput::Ipcidr(IpCidrSet::read_bin(
-            &mut decoder,
-            count as usize,
-        )?)),
-    }
+    Ok((behavior, count as usize))
 }
 
 fn read_i64_from<R: Read>(reader: &mut R) -> Result<i64> {

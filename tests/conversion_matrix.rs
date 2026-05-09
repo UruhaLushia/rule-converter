@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rule_converter::{
     BehaviorMode, ConvertOptions, InputBehaviorMode, InputFormat, OutputFormat, RuleTarget,
-    convert_payload, write_outputs_as, write_outputs_as_to_memory_owned,
+    convert_files, convert_payload, write_outputs_as, write_outputs_as_to_memory_owned,
 };
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
@@ -648,6 +648,49 @@ fn mihomo_yaml_auto_follows_domain_mrs_input_behavior() {
 
     assert!(text.contains("+.example.com"));
     assert!(!text.contains("DOMAIN-SUFFIX,example.com"));
+}
+
+#[test]
+fn mihomo_yaml_auto_follows_domain_mrs_file_input_behavior() {
+    let dir = temp_dir();
+    let input = dir.join("domain.mrs");
+    let mrs_result = convert_payload(
+        "payload:\n  - +.example.com\n",
+        ConvertOptions {
+            input_target: Some(RuleTarget::Mihomo),
+            input_format: Some(InputFormat::Yaml),
+            input_behavior: InputBehaviorMode::Auto,
+            output_target: RuleTarget::Mihomo,
+            output_format: OutputFormat::Mrs,
+            output_behavior: BehaviorMode::Domain,
+        },
+    )
+    .unwrap();
+    fs::write(&input, mrs_result.outputs[0].to_mrs_bytes().unwrap()).unwrap();
+
+    let result = convert_files(
+        [&input],
+        ConvertOptions {
+            input_target: Some(RuleTarget::Mihomo),
+            input_format: Some(InputFormat::Mrs),
+            input_behavior: InputBehaviorMode::Auto,
+            output_target: RuleTarget::Mihomo,
+            output_format: OutputFormat::Yaml,
+            output_behavior: BehaviorMode::Auto,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.output_behavior, BehaviorMode::Domain);
+
+    let (outputs, skipped) =
+        write_outputs_as_to_memory_owned(result, RuleTarget::Mihomo, OutputFormat::Yaml).unwrap();
+    assert!(skipped.is_empty());
+    let text = String::from_utf8(outputs[0].bytes.clone()).unwrap();
+
+    assert!(text.contains("+.example.com"));
+    assert!(!text.contains("DOMAIN-SUFFIX,example.com"));
+    fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]

@@ -1,4 +1,3 @@
-use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Cursor};
 use std::path::Path;
@@ -8,7 +7,9 @@ use anyhow::{Context, Result};
 use super::InputFormat;
 use crate::RuleTarget;
 use crate::codec::mihomo::for_each_simple_yaml_rule;
-use crate::codec::mihomo::mrs::{Behavior, parse_prefix, read_mrs};
+use crate::codec::mihomo::mrs::{
+    Behavior, parse_prefix, read_mrs_behavior, read_mrs_behavior_stream,
+};
 use crate::rules::{BehaviorMode, looks_classical};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -26,12 +27,12 @@ pub fn detect_path(path: &Path) -> Result<DetectedInput> {
         .as_deref()
     {
         Some("mrs") => {
-            let raw = fs::read(path)
+            let file = File::open(path)
                 .with_context(|| format!("failed to read input {}", path.display()))?;
             Ok(DetectedInput {
                 target: RuleTarget::Mihomo,
                 format: InputFormat::Mrs,
-                behavior: detect_mrs_behavior(&raw),
+                behavior: detect_mrs_behavior_stream(file),
             })
         }
         Some("srs") => Ok(DetectedInput {
@@ -40,14 +41,14 @@ pub fn detect_path(path: &Path) -> Result<DetectedInput> {
             behavior: BehaviorMode::Auto,
         }),
         Some("json") => {
-            let raw = fs::read(path)
+            let raw = std::fs::read(path)
                 .with_context(|| format!("failed to read input {}", path.display()))?;
             detect_json_or_text(&raw)
         }
         Some("yaml") => detect_yaml_or_text_path(path),
         Some("list") => detect_text_path(path),
         _ => {
-            let raw = fs::read(path)
+            let raw = std::fs::read(path)
                 .with_context(|| format!("failed to read input {}", path.display()))?;
             detect_payload(&raw)
         }
@@ -73,7 +74,15 @@ pub fn detect_payload(raw: &[u8]) -> Result<DetectedInput> {
 }
 
 fn detect_mrs_behavior(raw: &[u8]) -> BehaviorMode {
-    match read_mrs(raw).map(|rule_set| rule_set.behavior()) {
+    match read_mrs_behavior(raw) {
+        Ok(Behavior::Domain) => BehaviorMode::Domain,
+        Ok(Behavior::Ipcidr) => BehaviorMode::Ipcidr,
+        Err(_) => BehaviorMode::Auto,
+    }
+}
+
+fn detect_mrs_behavior_stream(file: File) -> BehaviorMode {
+    match read_mrs_behavior_stream(file) {
         Ok(Behavior::Domain) => BehaviorMode::Domain,
         Ok(Behavior::Ipcidr) => BehaviorMode::Ipcidr,
         Err(_) => BehaviorMode::Auto,

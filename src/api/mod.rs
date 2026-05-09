@@ -1,10 +1,10 @@
-use std::fs;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
 use crate::RuleTarget;
-use crate::codec::mihomo::mrs::{Behavior, read_mrs};
+use crate::codec::mihomo::mrs::{Behavior, read_mrs_stream};
 use crate::codec::sing_box::RuleStore;
 use crate::input::{
     DetectedInput, InputFormat, InputSource, detect_path, detect_payload, expand_file_paths,
@@ -248,9 +248,9 @@ fn convert_single_mrs_file_fast_path(
         return Ok(None);
     }
 
-    let raw = fs::read(&paths[0])
+    let file = File::open(&paths[0])
         .with_context(|| format!("failed to read input {}", paths[0].display()))?;
-    let rule_set = read_mrs(&raw)?;
+    let rule_set = read_mrs_stream(file)?;
     if !rule_set_matches_behavior(&rule_set, output_behavior) {
         return Ok(None);
     }
@@ -304,6 +304,21 @@ fn rule_set_matches_behavior(rule_set: &RuleSetOutput, output_behavior: Behavior
 fn detect_file_inputs(paths: &[PathBuf], options: ConvertOptions) -> Result<Vec<DetectedInput>> {
     if let (Some(target), Some(format)) = (options.input_target, options.input_format) {
         let behavior = input_behavior_to_output_mode(options.input_behavior);
+        if target == RuleTarget::Mihomo
+            && format == InputFormat::Mrs
+            && behavior == BehaviorMode::Auto
+        {
+            return paths
+                .iter()
+                .map(|path| {
+                    detect_path(path).map(|detected| DetectedInput {
+                        target,
+                        format,
+                        behavior: detected.behavior,
+                    })
+                })
+                .collect::<Result<Vec<_>>>();
+        }
         return Ok(vec![
             DetectedInput {
                 target,

@@ -13,6 +13,8 @@ use crate::{BehaviorMode, RuleTarget};
 
 use super::resolve_output_path_for_target;
 
+const FILE_BUFFER_SIZE: usize = 64 * 1024;
+
 pub enum OutputTarget<'a> {
     FilePath(&'a Path),
 }
@@ -145,7 +147,7 @@ fn write_to_path(
         let file = fs::File::create(&path)
             .with_context(|| format!("failed to create output {}", path.display()))?;
         write_rule_set(
-            BufWriter::with_capacity(1024 * 1024, file),
+            BufWriter::with_capacity(FILE_BUFFER_SIZE, file),
             rule_set,
             mixed_rules,
             rule_target,
@@ -180,7 +182,7 @@ fn write_mixed_rules_to_path(
 
     let file = fs::File::create(&path)
         .with_context(|| format!("failed to create output {}", path.display()))?;
-    let mut file = BufWriter::with_capacity(1024 * 1024, file);
+    let mut file = BufWriter::with_capacity(FILE_BUFFER_SIZE, file);
     match format {
         OutputFormat::Text => generic::text::write_plain_rules(&mut file, rules.iter())?,
         OutputFormat::Yaml => mihomo::write_payload_yaml(&mut file, rules.iter())?,
@@ -224,7 +226,7 @@ fn write_egern_classical_to_path(
     let file = fs::File::create(&path)
         .with_context(|| format!("failed to create output {}", path.display()))?;
     egern::write_rulesets_yaml_with_options(
-        BufWriter::with_capacity(1024 * 1024, file),
+        BufWriter::with_capacity(FILE_BUFFER_SIZE, file),
         outputs,
         no_resolve,
     )?;
@@ -331,7 +333,7 @@ fn write_sing_box_to_path(
 
     let file = fs::File::create(&path)
         .with_context(|| format!("failed to create output {}", path.display()))?;
-    let mut file = BufWriter::with_capacity(1024 * 1024, file);
+    let mut file = BufWriter::with_capacity(FILE_BUFFER_SIZE, file);
     let count = match format {
         OutputFormat::Json => {
             let count = rule_set.count();
@@ -386,7 +388,7 @@ fn write_generic_text_to_path(
 
     let file = fs::File::create(&path)
         .with_context(|| format!("failed to create output {}", path.display()))?;
-    let mut file = BufWriter::with_capacity(1024 * 1024, file);
+    let mut file = BufWriter::with_capacity(FILE_BUFFER_SIZE, file);
 
     for rule_set in outputs {
         if should_write_general_rule_set(rule_set, behavior, format) {
@@ -506,7 +508,7 @@ fn write_owned_sing_box_to_path(
 
     let file = fs::File::create(&path)
         .with_context(|| format!("failed to create output {}", path.display()))?;
-    let mut file = BufWriter::with_capacity(1024 * 1024, file);
+    let mut file = BufWriter::with_capacity(FILE_BUFFER_SIZE, file);
     let count = match format {
         OutputFormat::Json => {
             let count = rule_set.count();
