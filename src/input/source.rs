@@ -71,10 +71,7 @@ fn expand_wildcard_path(path: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
         .file_name()
         .and_then(|value| value.to_str())
         .ok_or_else(|| anyhow::anyhow!("wildcard input must end with a UTF-8 file pattern"))?;
-    if path
-        .parent()
-        .is_some_and(|parent| path_has_wildcard(parent))
-    {
+    if path.parent().is_some_and(path_has_wildcard) {
         anyhow::bail!("wildcard input only supports `*` in the final path component");
     }
 
@@ -142,52 +139,6 @@ fn wildcard_match(pattern: &str, value: &str) -> bool {
     ends_with_wildcard || remaining.is_empty()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn wildcard_matches_final_path_component() {
-        assert!(wildcard_match("*.yaml", "a.yaml"));
-        assert!(wildcard_match("ad-*.yaml", "ad-mihomo.yaml"));
-        assert!(wildcard_match("ad-*", "ad-mihomo.yaml"));
-        assert!(!wildcard_match("*.yaml", "a.list"));
-        assert!(!wildcard_match("ad-*.yaml", "other.yaml"));
-    }
-
-    #[test]
-    fn expands_directories_and_wildcards() {
-        let base = std::env::temp_dir().join(format!(
-            "rule-converter-expand-{}-{}",
-            std::process::id(),
-            "source"
-        ));
-        let nested = base.join("nested");
-        fs::create_dir_all(&nested).unwrap();
-        File::create(base.join("a.yaml"))
-            .unwrap()
-            .write_all(b"a")
-            .unwrap();
-        File::create(base.join("b.list"))
-            .unwrap()
-            .write_all(b"b")
-            .unwrap();
-        File::create(nested.join("c.yaml"))
-            .unwrap()
-            .write_all(b"c")
-            .unwrap();
-
-        let files = expand_file_paths([base.join("*.yaml")]).unwrap();
-        assert_eq!(files, vec![base.join("a.yaml")]);
-
-        let files = expand_file_paths([base.clone()]).unwrap();
-        assert_eq!(files.len(), 3);
-
-        fs::remove_dir_all(base).unwrap();
-    }
-}
-
 pub fn load_rules(source: InputSource<'_>, format: InputFormat) -> Result<Vec<String>> {
     load_rules_as(source, RuleTarget::Mihomo, format)
 }
@@ -234,5 +185,51 @@ pub fn for_each_rule(
             }
             parser::for_each_rule(BufReader::new(file), target, format, f)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn wildcard_matches_final_path_component() {
+        assert!(wildcard_match("*.yaml", "a.yaml"));
+        assert!(wildcard_match("ad-*.yaml", "ad-mihomo.yaml"));
+        assert!(wildcard_match("ad-*", "ad-mihomo.yaml"));
+        assert!(!wildcard_match("*.yaml", "a.list"));
+        assert!(!wildcard_match("ad-*.yaml", "other.yaml"));
+    }
+
+    #[test]
+    fn expands_directories_and_wildcards() {
+        let base = std::env::temp_dir().join(format!(
+            "rule-converter-expand-{}-{}",
+            std::process::id(),
+            "source"
+        ));
+        let nested = base.join("nested");
+        fs::create_dir_all(&nested).unwrap();
+        File::create(base.join("a.yaml"))
+            .unwrap()
+            .write_all(b"a")
+            .unwrap();
+        File::create(base.join("b.list"))
+            .unwrap()
+            .write_all(b"b")
+            .unwrap();
+        File::create(nested.join("c.yaml"))
+            .unwrap()
+            .write_all(b"c")
+            .unwrap();
+
+        let files = expand_file_paths([base.join("*.yaml")]).unwrap();
+        assert_eq!(files, vec![base.join("a.yaml")]);
+
+        let files = expand_file_paths([base.clone()]).unwrap();
+        assert_eq!(files.len(), 3);
+
+        fs::remove_dir_all(base).unwrap();
     }
 }
