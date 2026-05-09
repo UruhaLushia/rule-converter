@@ -33,12 +33,12 @@ Create an HTML file outside `pkg`, then import the generated module by relative 
 <meta charset="utf-8" />
 <button id="convert">convert</button>
 <script type="module">
-  import init, { convertPayloadString } from './wasm/pkg/rule_converter_wasm.js'
+  import init, { strToBuf } from './wasm/pkg/rule_converter_wasm.js'
 
   await init()
 
   document.querySelector('#convert').addEventListener('click', () => {
-    const result = convertPayloadString(
+    const result = strToBuf(
       `payload:\n  - DOMAIN,example.com\n  - DOMAIN-SUFFIX,example.net\n`,
       {
         inputTarget: 'mihomo',
@@ -50,8 +50,8 @@ Create an HTML file outside `pkg`, then import the generated module by relative 
       },
     )
 
-    const output = result.outputs[0]
-    console.log(output.behavior, output.format, output.count, output.bytes)
+    const bytes = result.outputs.domain
+    console.log(result.info.domain.behavior, result.info.domain.format, result.info.domain.count, bytes)
   })
 </script>
 ```
@@ -80,11 +80,11 @@ pnpm add file:/home/atri/git/xishang/rule-converter/wasm/pkg
 Use it from app code:
 
 ```js
-import init, { convertPayloadString } from '@uruhalushia/rule-converter-wasm'
+import init, { strToBuf } from '@uruhalushia/rule-converter-wasm'
 
 await init()
 
-const result = convertPayloadString(
+const result = strToBuf(
   `payload:\n  - DOMAIN,example.com\n  - DOMAIN-SUFFIX,example.net\n`,
   {
     inputTarget: 'mihomo',
@@ -96,8 +96,8 @@ const result = convertPayloadString(
   },
 )
 
-for (const output of result.outputs) {
-  console.log(output.behavior, output.format, output.count, output.bytes)
+for (const [name, bytes] of Object.entries(result.outputs)) {
+  console.log(name, result.info[name].behavior, result.info[name].format, result.info[name].count, bytes)
 }
 ```
 
@@ -106,40 +106,51 @@ The returned `bytes` value is a `Uint8Array`, so it can be downloaded, uploaded,
 MMDB list APIs also accept uploaded file bytes:
 
 ```js
-import init, { listAsnNumbers, listGeoipCountries } from '@uruhalushia/rule-converter-wasm'
+import init, { listAsnNumbers, listGeoipCountries, listGeoipDatCountries, listGeositeCodes } from '@uruhalushia/rule-converter-wasm'
 
 await init()
 
 const bytes = new Uint8Array(await file.arrayBuffer())
 console.log(listGeoipCountries(bytes))
 console.log(listAsnNumbers(bytes))
+console.log(listGeoipDatCountries(geoipDatBytes))
+console.log(listGeositeCodes(geositeDatBytes))
 ```
 
-DB conversion APIs are also available in WASM and return byte arrays for browser download/storage:
+DB conversions use the same `bufToBuf` / `bufToStr` functions. For example:
 
 ```js
-import { buildGeoipDb, convertGeoipDb, exportGeoipDb } from '@uruhalushia/rule-converter-wasm'
-
 const db = new Uint8Array(await mmdbFile.arrayBuffer())
-const cn = exportGeoipDb(db, {
-  countries: ['cn'],
+const cn = bufToStr(db, {
+  inputTarget: 'geoip',
+  inputFormat: 'mmdb',
   outputTarget: 'general',
   outputFormat: 'ipset',
+  countries: ['cn'],
+  split: false,
 })
-const singDb = convertGeoipDb(db, { outputFormat: 'sing-db' })
-const built = buildGeoipDb([
-  { country: 'cn', payload: new TextEncoder().encode('1.1.1.0/24\n') },
-], { outputFormat: 'mmdb' })
+const dat = bufToBuf(db, {
+  inputTarget: 'geoip',
+  inputFormat: 'mmdb',
+  outputTarget: 'geoip',
+  outputFormat: 'dat',
+})
+const geositeRules = bufToStr(geositeDatBytes, {
+  inputTarget: 'geosite',
+  inputFormat: 'dat',
+  outputTarget: 'general',
+  outputFormat: 'ruleset',
+  codes: ['cn'],
+  split: false,
+})
 ```
-
-Available DB APIs: `exportGeoipDb`, `exportAsnDb`, `convertGeoipDb`, `convertAsnDb`, `buildGeoipDb`, and `buildAsnDb`.
 
 Options use the same names as the N-API package:
 
 ```ts
 type RuleTarget = 'mihomo' | 'general' | 'egern' | 'sing-box'
-type InputFormat = 'yaml' | 'mrs' | 'text' | 'json' | 'srs'
-type OutputFormat = 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset'
+type InputFormat = 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'
+type OutputFormat = 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'
 type InputBehavior = 'auto' | 'domain' | 'ip' | 'classical'
 type OutputBehavior = 'domain' | 'ip' | 'classical'
 ```

@@ -8,16 +8,18 @@ export interface AnyBufferResult {
 }
 
 export interface AnyConvertOptions {
-  inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'asn'
-  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb'
+  inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
-  outputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'asn'
-  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb'
+  outputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
+  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'
   outputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
   countries?: Array<string>
+  codes?: Array<string>
   asns?: Array<number>
   split?: boolean
   country?: string
+  code?: string
   asn?: number
 }
 
@@ -49,6 +51,14 @@ export declare function listAsnNumbersFromBuffer(input: Uint8Array): Array<numbe
 export declare function listGeoipCountries(input: string): Array<string>
 
 export declare function listGeoipCountriesFromBuffer(input: Uint8Array): Array<string>
+
+export declare function listGeoipDatCountries(input: string): Array<string>
+
+export declare function listGeoipDatCountriesFromBuffer(input: Uint8Array): Array<string>
+
+export declare function listGeositeCodes(input: string): Array<string>
+
+export declare function listGeositeCodesFromBuffer(input: Uint8Array): Array<string>
 
 export interface SkippedRule {
   rule: string

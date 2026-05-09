@@ -132,11 +132,11 @@ sing-box 的 `domain_suffix` 使用自身语义：`example.com` 表示自身和�
 浏览器中使用 payload API，不包含文件系统读写：
 
 ```js
-import init, { convertPayloadString } from './pkg/rule_converter_wasm.js'
+import init, { strToBuf } from './pkg/rule_converter_wasm.js'
 
 await init()
 
-const result = convertPayloadString(`payload:
+const result = strToBuf(`payload:
   - DOMAIN,example.com
 `, {
   inputTarget: 'mihomo',
@@ -147,8 +147,8 @@ const result = convertPayloadString(`payload:
   outputBehavior: 'domain',
 })
 
-const first = result.outputs[0]
-console.log(first.behavior, first.format, first.count, first.bytes)
+const bytes = result.outputs.domain
+console.log(result.info.domain.behavior, result.info.domain.format, result.info.domain.count, bytes)
 ```
 
 返回值里的 `bytes` 是 `Uint8Array`，可直接用于下载、上传或写入 IndexedDB。
@@ -174,9 +174,9 @@ python -m http.server 5173
 
 ```html
 <script type="module">
-  import init, { convertPayloadString } from './wasm/pkg/rule_converter_wasm.js'
+  import init, { strToBuf } from './wasm/pkg/rule_converter_wasm.js'
   await init()
-  const result = convertPayloadString(`payload:
+  const result = strToBuf(`payload:
   - DOMAIN,example.com
 `, {
     inputTarget: 'mihomo',
@@ -186,7 +186,7 @@ python -m http.server 5173
     outputFormat: 'mrs',
     outputBehavior: 'domain',
   })
-  console.log(result.outputs[0].bytes)
+  console.log(result.outputs.domain)
 </script>
 ```
 
@@ -206,8 +206,8 @@ target/release/rule-converter --config examples/config.yaml
 
 - `input.path`: 单个输入路径。
 - `input.inputs`: 多个输入项。每项可以直接写路径，也可以写 `{ path, target, format, behavior }`；数据库构建项使用 `{ country, path, target, format, behavior }` 或 `{ asn, path, target, format, behavior }`。
-- `input.target`: 可选，规则输入使用 `mihomo`、`general`、`egern`、`sing-box`；数据库输入使用 `geoip` 或 `asn`。
-- `input.format`: 可选，规则输入使用 `yaml`、`mrs`、`text`、`json`、`srs`；`domainset`、`ruleset`、`ipset` 作为输入格式时按 `text` 读取。数据库输入使用 `mmdb`、`sing-db`、`metadb`，其中 `asn` 只支持 `mmdb`。
+- `input.target`: 可选，规则输入使用 `mihomo`、`general`、`egern`、`sing-box`；数据库输入使用 `geoip`、`geosite` 或 `asn`。
+- `input.format`: 可选，规则输入使用 `yaml`、`mrs`、`text`、`json`、`srs`；`domainset`、`ruleset`、`ipset` 作为输入格式时按 `text` 读取。数据库输入使用 `mmdb`、`sing-db`、`metadb`、`dat`，其中 `geosite` 只支持 `dat`，`asn` 只支持 `mmdb`。
 - `input.behavior`: 可选，`auto`、`domain`、`ip`、`classical`。
 
 - `output`: 单个输出项。
@@ -216,12 +216,12 @@ target/release/rule-converter --config examples/config.yaml
 - `output.dir`: 数据库导出时按 `country` 或 `asn` 拆分文件的目录。
 - `output.country`: GeoIP 数据库导出国家代码或列表，例如 `country: cn` 或 `country: [cn, us]`，省略时导出全部。
 - `output.asn`: ASN 数据库导出 ASN 或列表，例如 `asn: 13335` 或 `asn: [13335, 15169]`，省略时导出全部。
-- `output.target`: 规则输出使用 `mihomo`、`general`、`egern`、`sing-box`；数据库输出使用 `geoip` 或 `asn`。
-- `output.format`: mihomo 使用 `mrs`、`text`、`yaml`；sing-box 使用 `srs`、`json`；egern 使用 `ruleset`；general 使用 `domainset`、`ruleset`、`ipset`；数据库使用 `mmdb`、`sing-db`、`metadb`，其中 `asn` 只支持 `mmdb`。
+- `output.target`: 规则输出使用 `mihomo`、`general`、`egern`、`sing-box`；数据库输出使用 `geoip`、`geosite` 或 `asn`。
+- `output.format`: mihomo 使用 `mrs`、`text`、`yaml`；sing-box 使用 `srs`、`json`；egern 使用 `ruleset`；general 使用 `domainset`、`ruleset`、`ipset`；数据库使用 `mmdb`、`sing-db`、`metadb`、`dat`，其中 `geosite` 只支持 `dat`，`asn` 只支持 `mmdb`。
 - `output.behavior`: 可选，`auto`、`domain`、`ip`、`classical`。`domainset`/`ipset` 不使用该项；mihomo MRS 的 `auto` 会跟随明确的输入类型。
 - `defaults`: 多任务配置的默认值。
 
-GeoIP/ASN 数据库任务支持导出、构建和数据库格式直转：
+GeoIP/Geosite/ASN 数据库任务支持导出、构建和数据库格式直转：
 
 ```yaml
 jobs:
@@ -289,7 +289,7 @@ jobs:
       format: mmdb
 ```
 
-导出数据库时，如果使用 `output.dir` 会按 `country` 或 `asn` 拆分文件；省略 `output.country` / `output.asn` 时必须使用 `output.dir` 并导出全部条目。`output.path` 只用于显式指定 `country` / `asn` 后合并这些指定条目；单独输出可写 `country: cn` 或 `asn: 13335`。数据库导出可以接普通规则输出的 `target` / `format` / `behavior`，例如 `general ipset` 或 `mihomo mrs`。DB 直转也可以带 `country` / `asn`，用于重新生成只包含指定条目的数据库。构建 GeoIP 数据库时使用 `input.inputs` 中的 `country` 作为国家代码，可写出 `mmdb`、`sing-db` 或 `metadb`。构建 ASN 数据库时使用 `input.inputs` 中的 `asn`，只支持 `mmdb`。
+导出数据库时，如果使用 `output.dir` 会按 `country` 或 `asn` 拆分文件；省略 `output.country` / `output.asn` 时必须使用 `output.dir` 并导出全部条目。`output.path` 只用于显式指定 `country` / `asn` 后合并这些指定条目；单独输出可写 `country: cn` 或 `asn: 13335`。数据库导出可以接普通规则输出的 `target` / `format` / `behavior`，例如 `general ipset` 或 `mihomo mrs`。DB 直转也可以带 `country` / `asn`，用于重新生成只包含指定条目的数据库。构建 GeoIP 数据库时使用 `input.inputs` 中的 `country` 作为国家代码，可写出 `mmdb`、`sing-db`、`metadb` 或 `dat`。构建 Geosite 数据库时使用 `input.inputs` 中的 `code` 作为站点代码，只支持 `dat`。构建 ASN 数据库时使用 `input.inputs` 中的 `asn`，只支持 `mmdb`。
 
 示例配置见 `examples/`：
 

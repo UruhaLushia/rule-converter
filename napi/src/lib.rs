@@ -5,14 +5,15 @@ use napi_derive::napi;
 use rule_converter::{
     BehaviorMode, ConvertOptions as CoreConvertOptions, FileInput as CoreFileInput,
     InputBehaviorMode, InputFormat, MmdbFormat, OutputFormat, RuleSetOutput, RuleTarget,
-    build_asn_mmdb_to_memory, build_geoip_mmdb_to_memory, convert_asn_mmdb_file_to_memory_filtered,
-    convert_asn_mmdb_to_memory_filtered, convert_file_inputs,
-    convert_geoip_mmdb_file_to_memory_filtered, convert_geoip_mmdb_to_memory_filtered,
-    convert_payload, default_output_behavior, export_asn_mmdb_file_to_ipset_string,
-    export_asn_mmdb_file_to_memory, export_asn_mmdb_to_ipset_string, export_asn_mmdb_to_memory,
-    export_geoip_mmdb_file_to_ipset_string, export_geoip_mmdb_file_to_memory,
-    export_geoip_mmdb_to_ipset_string, export_geoip_mmdb_to_memory, list_asn_mmdb_asns,
-    list_asn_mmdb_asns_from_bytes, list_geoip_mmdb_countries, list_geoip_mmdb_countries_from_bytes,
+    build_asn_mmdb_to_memory, build_geoip_db_to_memory, build_geosite_dat_to_memory,
+    convert_asn_mmdb_file_to_memory_filtered, convert_asn_mmdb_to_memory_filtered,
+    convert_file_inputs, convert_geoip_db_to_memory_filtered, convert_payload,
+    default_output_behavior, export_asn_mmdb_file_to_ipset_string, export_asn_mmdb_file_to_memory,
+    export_asn_mmdb_to_ipset_string, export_asn_mmdb_to_memory, export_geoip_db_to_memory,
+    export_geoip_mmdb_file_to_ipset_string, export_geoip_mmdb_to_ipset_string,
+    export_geosite_dat_to_memory, list_asn_mmdb_asns, list_asn_mmdb_asns_from_bytes,
+    list_geoip_dat_countries as list_geoip_dat_countries_from_bytes_core,
+    list_geoip_mmdb_countries, list_geoip_mmdb_countries_from_bytes, list_geosite_dat_codes,
     write_outputs_as_to_memory_owned,
 };
 
@@ -24,31 +25,34 @@ type BehaviorOption = String;
 enum AnyTarget {
     Rule(Option<RuleTarget>),
     Geoip,
+    Geosite,
     Asn,
 }
 
 #[napi(object)]
 pub struct AnyConvertOptions {
-    #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'asn'")]
+    #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'")]
     pub input_target: Option<AnyTargetOption>,
     #[napi(
-        ts_type = "'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb'"
+        ts_type = "'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'"
     )]
     pub input_format: Option<AnyFormatOption>,
     #[napi(ts_type = "'auto' | 'domain' | 'ip' | 'classical'")]
     pub input_behavior: Option<BehaviorOption>,
-    #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'asn'")]
+    #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'")]
     pub output_target: Option<AnyTargetOption>,
     #[napi(
-        ts_type = "'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb'"
+        ts_type = "'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'"
     )]
     pub output_format: Option<AnyFormatOption>,
     #[napi(ts_type = "'auto' | 'domain' | 'ip' | 'classical'")]
     pub output_behavior: Option<BehaviorOption>,
     pub countries: Option<Vec<String>>,
+    pub codes: Option<Vec<String>>,
     pub asns: Option<Vec<u32>>,
     pub split: Option<bool>,
     pub country: Option<String>,
+    pub code: Option<String>,
     pub asn: Option<u32>,
 }
 
@@ -94,9 +98,11 @@ impl Default for AnyConvertOptions {
             output_format: None,
             output_behavior: None,
             countries: None,
+            codes: None,
             asns: None,
             split: None,
             country: None,
+            code: None,
             asn: None,
         }
     }
@@ -149,6 +155,28 @@ pub fn list_geoip_countries_from_buffer(input: Uint8Array) -> Result<Vec<String>
 }
 
 #[napi]
+pub fn list_geoip_dat_countries_from_buffer(input: Uint8Array) -> Result<Vec<String>> {
+    list_geoip_dat_countries_from_bytes_core(input.as_ref()).map_err(to_napi_error)
+}
+
+#[napi]
+pub fn list_geosite_codes_from_buffer(input: Uint8Array) -> Result<Vec<String>> {
+    list_geosite_dat_codes(input.as_ref()).map_err(to_napi_error)
+}
+
+#[napi]
+pub fn list_geosite_codes(input: String) -> Result<Vec<String>> {
+    let bytes = std::fs::read(input).map_err(|err| napi::Error::from_reason(err.to_string()))?;
+    list_geosite_dat_codes(&bytes).map_err(to_napi_error)
+}
+
+#[napi]
+pub fn list_geoip_dat_countries(input: String) -> Result<Vec<String>> {
+    let bytes = std::fs::read(input).map_err(|err| napi::Error::from_reason(err.to_string()))?;
+    list_geoip_dat_countries_from_bytes_core(&bytes).map_err(to_napi_error)
+}
+
+#[napi]
 pub fn list_asn_numbers(input: String) -> Result<Vec<u32>> {
     list_asn_mmdb_asns(input).map_err(to_napi_error)
 }
@@ -168,6 +196,7 @@ fn convert_any_file_to_buffer(
             convert_rule_file_any_to_buffer(input, input_target, options)
         }
         AnyTarget::Geoip => convert_geoip_file_any_to_buffer(input, options),
+        AnyTarget::Geosite => convert_geosite_file_any_to_buffer(input, options),
         AnyTarget::Asn => convert_asn_file_any_to_buffer(input, options),
     }
 }
@@ -188,6 +217,7 @@ fn convert_any_payload_to_buffer_with_options(
             convert_rule_payload_any_to_buffer(payload, input_target, options)
         }
         AnyTarget::Geoip => convert_geoip_payload_any_to_buffer(payload, options),
+        AnyTarget::Geosite => convert_geosite_payload_any_to_buffer(payload, options),
         AnyTarget::Asn => convert_asn_payload_any_to_buffer(payload, options),
     }
 }
@@ -199,6 +229,9 @@ fn convert_any_file_to_string(
     let options = options.unwrap_or_default();
     match parse_any_input_target(options.input_target.as_deref())? {
         AnyTarget::Geoip => convert_geoip_file_any_to_string(input, options),
+        AnyTarget::Geosite => {
+            any_buffer_result_to_string(convert_geosite_file_any_to_buffer(input, options)?)
+        }
         AnyTarget::Asn => convert_asn_file_any_to_string(input, options),
         AnyTarget::Rule(input_target) => any_buffer_result_to_string(
             convert_rule_file_any_to_buffer(input, input_target, options)?,
@@ -213,6 +246,9 @@ fn convert_any_payload_to_string(
     let options = options.unwrap_or_default();
     match parse_any_input_target(options.input_target.as_deref())? {
         AnyTarget::Geoip => convert_geoip_payload_any_to_string(payload, options),
+        AnyTarget::Geosite => {
+            any_buffer_result_to_string(convert_geosite_payload_any_to_buffer(payload, options)?)
+        }
         AnyTarget::Asn => convert_asn_payload_any_to_string(payload, options),
         AnyTarget::Rule(input_target) => any_buffer_result_to_string(
             convert_rule_payload_any_to_buffer(payload, input_target, options)?,
@@ -263,8 +299,23 @@ fn convert_rule_payload_any_to_buffer(
                 options.input_format,
                 options.input_behavior,
             )?;
-            let output = build_geoip_mmdb_to_memory([(country, rule_set)], output_format)
+            let output = build_geoip_db_to_memory([(country, rule_set)], output_format)
                 .map_err(to_napi_error)?;
+            Ok(any_db_result(output))
+        }
+        AnyTarget::Geosite => {
+            let code = options
+                .code
+                .or(options.country)
+                .ok_or_else(|| napi::Error::from_reason("geosite dat output needs code"))?;
+            validate_geosite_output_format(options.output_format.as_deref())?;
+            let result = convert_rule_payload_to_classical(
+                payload,
+                input_target.map(|target| target.as_str().to_string()),
+                options.input_format,
+                options.input_behavior,
+            )?;
+            let output = build_geosite_dat_to_memory([(code, result)]).map_err(to_napi_error)?;
             Ok(any_db_result(output))
         }
         AnyTarget::Asn => {
@@ -332,8 +383,23 @@ fn convert_rule_file_any_to_buffer(
                 options.input_format,
                 options.input_behavior,
             )?;
-            let output = build_geoip_mmdb_to_memory([(country, rule_set)], output_format)
+            let output = build_geoip_db_to_memory([(country, rule_set)], output_format)
                 .map_err(to_napi_error)?;
+            Ok(any_db_result(output))
+        }
+        AnyTarget::Geosite => {
+            let code = options
+                .code
+                .or(options.country)
+                .ok_or_else(|| napi::Error::from_reason("geosite dat output needs code"))?;
+            validate_geosite_output_format(options.output_format.as_deref())?;
+            let result = convert_rule_file_to_classical(
+                input,
+                input_target.map(|target| target.as_str().to_string()),
+                options.input_format,
+                options.input_behavior,
+            )?;
+            let output = build_geosite_dat_to_memory([(code, result)]).map_err(to_napi_error)?;
             Ok(any_db_result(output))
         }
         AnyTarget::Asn => {
@@ -364,10 +430,15 @@ fn convert_geoip_file_any_to_buffer(
                 .unwrap_or(OutputFormat::IpSet);
             let output_behavior = parse_output_behavior(options.output_behavior.as_deref())?
                 .unwrap_or_else(|| default_output_behavior(output_target, output_format));
-            let countries = options.countries.unwrap_or_default();
+            let input_format =
+                parse_db_format_value(options.input_format.as_deref())?.unwrap_or(MmdbFormat::Mmdb);
+            let countries = one_or_many_string(options.country, options.countries);
             let split = options.split.unwrap_or(true);
-            let outputs = export_geoip_mmdb_file_to_memory(
-                input,
+            let bytes =
+                std::fs::read(input).map_err(|err| napi::Error::from_reason(err.to_string()))?;
+            let outputs = export_geoip_db_to_memory(
+                &bytes,
+                input_format,
                 &countries,
                 split,
                 output_target,
@@ -378,16 +449,125 @@ fn convert_geoip_file_any_to_buffer(
             Ok(any_db_rules_result(outputs))
         }
         AnyTarget::Geoip => {
+            let input_format =
+                parse_db_format_value(options.input_format.as_deref())?.unwrap_or(MmdbFormat::Mmdb);
             let output_format = parse_db_format_value(options.output_format.as_deref())?
                 .unwrap_or(MmdbFormat::Mmdb);
-            let countries = options.countries.unwrap_or_default();
-            let output =
-                convert_geoip_mmdb_file_to_memory_filtered(input, &countries, output_format)
-                    .map_err(to_napi_error)?;
+            let countries = one_or_many_string(options.country, options.countries);
+            let bytes =
+                std::fs::read(input).map_err(|err| napi::Error::from_reason(err.to_string()))?;
+            let output = convert_geoip_db_to_memory_filtered(
+                &bytes,
+                input_format,
+                &countries,
+                output_format,
+            )
+            .map_err(to_napi_error)?;
             Ok(any_db_result(output))
         }
+        AnyTarget::Geosite => Err(napi::Error::from_reason(
+            "cannot convert geoip DB to geosite DB",
+        )),
         AnyTarget::Asn => Err(napi::Error::from_reason(
             "cannot convert geoip DB to asn DB",
+        )),
+    }
+}
+
+fn convert_geosite_file_any_to_buffer(
+    input: String,
+    options: AnyConvertOptions,
+) -> Result<AnyBufferResult> {
+    validate_geosite_input_format(options.input_format.as_deref())?;
+    match parse_any_output_target(options.output_target.as_deref())? {
+        AnyTarget::Rule(output_target) => {
+            let output_target = output_target.unwrap_or(RuleTarget::General);
+            let output_format = parse_rule_output_format(options.output_format.as_deref())?
+                .unwrap_or(OutputFormat::RuleSet);
+            let output_behavior = parse_output_behavior(options.output_behavior.as_deref())?
+                .unwrap_or_else(|| default_output_behavior(output_target, output_format));
+            let codes = one_or_many_string(
+                options.code.or(options.country),
+                options.codes.or(options.countries),
+            );
+            let split = options.split.unwrap_or(true);
+            let bytes =
+                std::fs::read(input).map_err(|err| napi::Error::from_reason(err.to_string()))?;
+            let outputs = export_geosite_dat_to_memory(
+                &bytes,
+                &codes,
+                split,
+                output_target,
+                output_format,
+                output_behavior,
+            )
+            .map_err(to_napi_error)?;
+            Ok(any_db_rules_result(outputs))
+        }
+        AnyTarget::Geosite => {
+            validate_geosite_output_format(options.output_format.as_deref())?;
+            let codes = one_or_many_string(
+                options.code.or(options.country),
+                options.codes.or(options.countries),
+            );
+            let bytes =
+                std::fs::read(input).map_err(|err| napi::Error::from_reason(err.to_string()))?;
+            let output = rule_converter::convert_geosite_dat_to_memory_filtered(&bytes, &codes)
+                .map_err(to_napi_error)?;
+            Ok(any_db_result(output))
+        }
+        AnyTarget::Geoip => Err(napi::Error::from_reason(
+            "cannot convert geosite DB to geoip DB",
+        )),
+        AnyTarget::Asn => Err(napi::Error::from_reason(
+            "cannot convert geosite DB to asn DB",
+        )),
+    }
+}
+
+fn convert_geosite_payload_any_to_buffer(
+    payload: &[u8],
+    options: AnyConvertOptions,
+) -> Result<AnyBufferResult> {
+    validate_geosite_input_format(options.input_format.as_deref())?;
+    match parse_any_output_target(options.output_target.as_deref())? {
+        AnyTarget::Rule(output_target) => {
+            let output_target = output_target.unwrap_or(RuleTarget::General);
+            let output_format = parse_rule_output_format(options.output_format.as_deref())?
+                .unwrap_or(OutputFormat::RuleSet);
+            let output_behavior = parse_output_behavior(options.output_behavior.as_deref())?
+                .unwrap_or_else(|| default_output_behavior(output_target, output_format));
+            let codes = one_or_many_string(
+                options.code.or(options.country),
+                options.codes.or(options.countries),
+            );
+            let split = options.split.unwrap_or(true);
+            let outputs = export_geosite_dat_to_memory(
+                payload,
+                &codes,
+                split,
+                output_target,
+                output_format,
+                output_behavior,
+            )
+            .map_err(to_napi_error)?;
+            Ok(any_db_rules_result(outputs))
+        }
+        AnyTarget::Geosite => {
+            validate_geosite_output_format(options.output_format.as_deref())?;
+            let codes = one_or_many_string(
+                options.code.or(options.country),
+                options.codes.or(options.countries),
+            );
+            let output = rule_converter::convert_geosite_dat_to_memory_filtered(payload, &codes)
+                .map_err(to_napi_error)?;
+            Ok(any_db_result(output))
+        }
+        AnyTarget::Geoip => Err(napi::Error::from_reason(
+            "cannot convert geosite DB to geoip DB",
+        )),
+        AnyTarget::Asn => Err(napi::Error::from_reason(
+            "cannot convert geosite DB to asn DB",
         )),
     }
 }
@@ -403,7 +583,7 @@ fn convert_asn_file_any_to_buffer(
                 .unwrap_or(OutputFormat::IpSet);
             let output_behavior = parse_output_behavior(options.output_behavior.as_deref())?
                 .unwrap_or_else(|| default_output_behavior(output_target, output_format));
-            let asns = options.asns.unwrap_or_default();
+            let asns = one_or_many_u32(options.asn, options.asns);
             let split = options.split.unwrap_or(true);
             let outputs = export_asn_mmdb_file_to_memory(
                 input,
@@ -418,13 +598,16 @@ fn convert_asn_file_any_to_buffer(
         }
         AnyTarget::Asn => {
             validate_asn_output_format(options.output_format.as_deref())?;
-            let asns = options.asns.unwrap_or_default();
+            let asns = one_or_many_u32(options.asn, options.asns);
             let output =
                 convert_asn_mmdb_file_to_memory_filtered(input, &asns).map_err(to_napi_error)?;
             Ok(any_db_result(output))
         }
         AnyTarget::Geoip => Err(napi::Error::from_reason(
             "cannot convert asn DB to geoip DB",
+        )),
+        AnyTarget::Geosite => Err(napi::Error::from_reason(
+            "cannot convert asn DB to geosite DB",
         )),
     }
 }
@@ -434,7 +617,7 @@ fn convert_geoip_file_any_to_string(
     options: AnyConvertOptions,
 ) -> Result<AnyStringResult> {
     if can_use_db_ipset_string_fast_path(&options)? {
-        let countries = options.countries.unwrap_or_default();
+        let countries = one_or_many_string(options.country, options.countries);
         let output =
             export_geoip_mmdb_file_to_ipset_string(input, &countries).map_err(to_napi_error)?;
         return Ok(any_db_string_result(output));
@@ -447,7 +630,7 @@ fn convert_asn_file_any_to_string(
     options: AnyConvertOptions,
 ) -> Result<AnyStringResult> {
     if can_use_db_ipset_string_fast_path(&options)? {
-        let asns = options.asns.unwrap_or_default();
+        let asns = one_or_many_u32(options.asn, options.asns);
         let output = export_asn_mmdb_file_to_ipset_string(input, &asns).map_err(to_napi_error)?;
         return Ok(any_db_string_result(output));
     }
@@ -465,10 +648,13 @@ fn convert_geoip_payload_any_to_buffer(
                 .unwrap_or(OutputFormat::IpSet);
             let output_behavior = parse_output_behavior(options.output_behavior.as_deref())?
                 .unwrap_or_else(|| default_output_behavior(output_target, output_format));
-            let countries = options.countries.unwrap_or_default();
+            let input_format =
+                parse_db_format_value(options.input_format.as_deref())?.unwrap_or(MmdbFormat::Mmdb);
+            let countries = one_or_many_string(options.country, options.countries);
             let split = options.split.unwrap_or(true);
-            let outputs = export_geoip_mmdb_to_memory(
+            let outputs = export_geoip_db_to_memory(
                 payload,
+                input_format,
                 &countries,
                 split,
                 output_target,
@@ -479,13 +665,23 @@ fn convert_geoip_payload_any_to_buffer(
             Ok(any_db_rules_result(outputs))
         }
         AnyTarget::Geoip => {
+            let input_format =
+                parse_db_format_value(options.input_format.as_deref())?.unwrap_or(MmdbFormat::Mmdb);
             let output_format = parse_db_format_value(options.output_format.as_deref())?
                 .unwrap_or(MmdbFormat::Mmdb);
-            let countries = options.countries.unwrap_or_default();
-            let output = convert_geoip_mmdb_to_memory_filtered(payload, &countries, output_format)
-                .map_err(to_napi_error)?;
+            let countries = one_or_many_string(options.country, options.countries);
+            let output = convert_geoip_db_to_memory_filtered(
+                payload,
+                input_format,
+                &countries,
+                output_format,
+            )
+            .map_err(to_napi_error)?;
             Ok(any_db_result(output))
         }
+        AnyTarget::Geosite => Err(napi::Error::from_reason(
+            "cannot convert geoip DB to geosite DB",
+        )),
         AnyTarget::Asn => Err(napi::Error::from_reason(
             "cannot convert geoip DB to asn DB",
         )),
@@ -503,7 +699,7 @@ fn convert_asn_payload_any_to_buffer(
                 .unwrap_or(OutputFormat::IpSet);
             let output_behavior = parse_output_behavior(options.output_behavior.as_deref())?
                 .unwrap_or_else(|| default_output_behavior(output_target, output_format));
-            let asns = options.asns.unwrap_or_default();
+            let asns = one_or_many_u32(options.asn, options.asns);
             let split = options.split.unwrap_or(true);
             let outputs = export_asn_mmdb_to_memory(
                 payload,
@@ -518,13 +714,16 @@ fn convert_asn_payload_any_to_buffer(
         }
         AnyTarget::Asn => {
             validate_asn_output_format(options.output_format.as_deref())?;
-            let asns = options.asns.unwrap_or_default();
+            let asns = one_or_many_u32(options.asn, options.asns);
             let output =
                 convert_asn_mmdb_to_memory_filtered(payload, &asns).map_err(to_napi_error)?;
             Ok(any_db_result(output))
         }
         AnyTarget::Geoip => Err(napi::Error::from_reason(
             "cannot convert asn DB to geoip DB",
+        )),
+        AnyTarget::Geosite => Err(napi::Error::from_reason(
+            "cannot convert asn DB to geosite DB",
         )),
     }
 }
@@ -534,7 +733,7 @@ fn convert_geoip_payload_any_to_string(
     options: AnyConvertOptions,
 ) -> Result<AnyStringResult> {
     if can_use_db_ipset_string_fast_path(&options)? {
-        let countries = options.countries.unwrap_or_default();
+        let countries = one_or_many_string(options.country, options.countries);
         let output =
             export_geoip_mmdb_to_ipset_string(payload, &countries).map_err(to_napi_error)?;
         return Ok(any_db_string_result(output));
@@ -547,11 +746,53 @@ fn convert_asn_payload_any_to_string(
     options: AnyConvertOptions,
 ) -> Result<AnyStringResult> {
     if can_use_db_ipset_string_fast_path(&options)? {
-        let asns = options.asns.unwrap_or_default();
+        let asns = one_or_many_u32(options.asn, options.asns);
         let output = export_asn_mmdb_to_ipset_string(payload, &asns).map_err(to_napi_error)?;
         return Ok(any_db_string_result(output));
     }
     any_buffer_result_to_string(convert_asn_payload_any_to_buffer(payload, options)?)
+}
+
+fn convert_rule_file_to_classical(
+    path: String,
+    input_target: Option<String>,
+    input_format: Option<String>,
+    input_behavior: Option<String>,
+) -> Result<rule_converter::ConvertResult> {
+    convert_file_inputs(
+        [CoreFileInput {
+            path: path.into(),
+            target: parse_optional_rule_target(input_target)?,
+            format: parse_optional_input_format(input_format)?,
+            behavior: parse_input_behavior(input_behavior)?,
+        }],
+        classical_convert_options(),
+    )
+    .map_err(to_napi_error)
+}
+
+fn convert_rule_payload_to_classical(
+    payload: &[u8],
+    input_target: Option<String>,
+    input_format: Option<String>,
+    input_behavior: Option<String>,
+) -> Result<rule_converter::ConvertResult> {
+    let mut options = classical_convert_options();
+    options.input_target = parse_optional_rule_target(input_target)?;
+    options.input_format = parse_optional_input_format(input_format)?;
+    options.input_behavior = parse_input_behavior(input_behavior)?;
+    convert_payload(payload, options).map_err(to_napi_error)
+}
+
+fn classical_convert_options() -> CoreConvertOptions {
+    CoreConvertOptions {
+        input_target: None,
+        input_format: None,
+        input_behavior: InputBehaviorMode::Auto,
+        output_target: RuleTarget::General,
+        output_format: OutputFormat::RuleSet,
+        output_behavior: BehaviorMode::Classical,
+    }
 }
 
 fn collect_ip_rule_set_from_file(
@@ -716,6 +957,12 @@ fn can_use_db_ipset_string_fast_path(options: &AnyConvertOptions) -> Result<bool
     if options.split.unwrap_or(true) {
         return Ok(false);
     }
+    if matches!(
+        parse_db_format_value(options.input_format.as_deref())?,
+        Some(MmdbFormat::Dat)
+    ) {
+        return Ok(false);
+    }
     let AnyTarget::Rule(output_target) = parse_any_output_target(options.output_target.as_deref())?
     else {
         return Ok(false);
@@ -730,6 +977,22 @@ fn can_use_db_ipset_string_fast_path(options: &AnyConvertOptions) -> Result<bool
         && output_behavior == BehaviorMode::Ipcidr)
 }
 
+fn one_or_many_string(one: Option<String>, many: Option<Vec<String>>) -> Vec<String> {
+    let mut values = many.unwrap_or_default();
+    if let Some(one) = one {
+        values.push(one);
+    }
+    values
+}
+
+fn one_or_many_u32(one: Option<u32>, many: Option<Vec<u32>>) -> Vec<u32> {
+    let mut values = many.unwrap_or_default();
+    if let Some(one) = one {
+        values.push(one);
+    }
+    values
+}
+
 fn parse_any_input_target(value: Option<&str>) -> Result<AnyTarget> {
     parse_any_target(value, true)
 }
@@ -741,6 +1004,7 @@ fn parse_any_output_target(value: Option<&str>) -> Result<AnyTarget> {
 fn parse_any_target(value: Option<&str>, allow_auto_rule_input: bool) -> Result<AnyTarget> {
     match value {
         Some("geoip") => Ok(AnyTarget::Geoip),
+        Some("geosite") => Ok(AnyTarget::Geosite),
         Some("asn") => Ok(AnyTarget::Asn),
         Some(value) => Ok(AnyTarget::Rule(Some(
             RuleTarget::parse_arg(value).map_err(to_napi_error)?,
@@ -783,6 +1047,21 @@ fn validate_asn_output_format(value: Option<&str>) -> Result<()> {
         if format != MmdbFormat::Mmdb {
             return Err(napi::Error::from_reason(
                 "ASN target only supports mmdb format",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_geosite_input_format(value: Option<&str>) -> Result<()> {
+    validate_geosite_output_format(value)
+}
+
+fn validate_geosite_output_format(value: Option<&str>) -> Result<()> {
+    if let Some(format) = parse_db_format_value(value)? {
+        if format != MmdbFormat::Dat {
+            return Err(napi::Error::from_reason(
+                "geosite target only supports dat format",
             ));
         }
     }

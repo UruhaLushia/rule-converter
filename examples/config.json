@@ -46,6 +46,26 @@
       "output": { "path": "dist/geoip.mmdb", "target": "geoip", "format": "sing-db" }
     },
     {
+      "input": { "path": "geoip.dat", "target": "geoip", "format": "dat" },
+      "outputs": [
+        { "dir": "dist/geoip-dat", "target": "general", "format": "ipset" },
+        { "path": "dist/geoip-cn.dat", "target": "geoip", "format": "dat", "country": "cn" }
+      ]
+    },
+    {
+      "input": { "path": "geosite.dat", "target": "geosite", "format": "dat" },
+      "outputs": [
+        { "dir": "dist/geosite", "target": "general", "format": "ruleset", "behavior": "classical" },
+        { "path": "dist/geosite-cn.dat", "target": "geosite", "format": "dat", "code": "cn" }
+      ]
+    },
+    {
+      "input": { "inputs": [
+        { "code": "cn", "path": "dist/geosite/cn.list", "target": "general", "format": "ruleset", "behavior": "classical" }
+      ] },
+      "output": { "path": "dist/geosite.dat", "target": "geosite", "format": "dat" }
+    },
+    {
       "input": { "path": "asn.mmdb", "target": "asn", "format": "mmdb" },
       "outputs": [
         { "dir": "dist/asn", "target": "general", "format": "ipset" },

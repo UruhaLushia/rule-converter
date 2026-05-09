@@ -500,7 +500,7 @@ fn convert_geoip_mmdb_reader<S: AsRef<[u8]>>(
                                 country: CountryCodeValue { iso_code: &country },
                             })?,
                             MmdbFormat::SingDb => db.insert_value(country.as_str())?,
-                            MmdbFormat::MetaDb => unreachable!(),
+                            MmdbFormat::MetaDb | MmdbFormat::Dat => unreachable!(),
                         };
                         values.insert(country, data_ref);
                         data_ref
@@ -514,6 +514,7 @@ fn convert_geoip_mmdb_reader<S: AsRef<[u8]>>(
                 count += 1;
             }
         }
+        MmdbFormat::Dat => unreachable!("dat is handled by codec::dat"),
         MmdbFormat::MetaDb => {
             let mut values = HashMap::new();
             for item in reader.networks(WithinOptions::default())? {
@@ -586,6 +587,7 @@ where
                         MmdbFormat::SingDb | MmdbFormat::MetaDb => {
                             db.insert_value(country.as_str())?
                         }
+                        MmdbFormat::Dat => unreachable!("dat is handled by codec::dat"),
                     };
                     values.insert(country.clone(), data_ref);
                     data_ref
@@ -656,6 +658,7 @@ where
                         country: CountryCodeValue { iso_code: &country },
                     })?,
                     MmdbFormat::SingDb | MmdbFormat::MetaDb => db.insert_value(country.as_str())?,
+                    MmdbFormat::Dat => unreachable!("dat is handled by codec::dat"),
                 };
                 values.insert(country.clone(), data_ref);
                 data_ref
@@ -708,6 +711,7 @@ where
                         country: CountryCodeValue { iso_code: &country },
                     })?,
                     MmdbFormat::SingDb | MmdbFormat::MetaDb => db.insert_value(country.as_str())?,
+                    MmdbFormat::Dat => unreachable!("dat is handled by codec::dat"),
                 };
                 values.insert(country.clone(), data_ref);
                 data_ref

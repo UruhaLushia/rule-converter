@@ -2,11 +2,15 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use rule_converter::codec::mihomo::mrs::IpCidrSetBuilder;
 use rule_converter::{
-    MmdbFormat, build_asn_mmdb_from_cidrs, build_geoip_mmdb_from_cidrs,
-    convert_asn_mmdb_file_to_memory_filtered, convert_geoip_mmdb_file_to_memory_filtered,
-    list_asn_mmdb_asns, list_asn_mmdb_asns_from_bytes, list_geoip_mmdb_countries,
-    list_geoip_mmdb_countries_from_bytes,
+    BehaviorMode, ConvertResult, MmdbFormat, OutputFormat, RuleSetOutput, RuleTarget,
+    build_asn_mmdb_from_cidrs, build_geoip_db_to_memory, build_geoip_mmdb_from_cidrs,
+    build_geosite_dat_to_memory, convert_asn_mmdb_file_to_memory_filtered,
+    convert_geoip_db_to_memory_filtered, convert_geoip_mmdb_file_to_memory_filtered,
+    export_geosite_dat_general_ruleset_to_writer, export_geosite_dat_to_memory, list_asn_mmdb_asns,
+    list_asn_mmdb_asns_from_bytes, list_geoip_dat_countries, list_geoip_mmdb_countries,
+    list_geoip_mmdb_countries_from_bytes, list_geosite_dat_codes,
 };
 
 #[test]
@@ -63,6 +67,95 @@ fn lists_asn_numbers_from_file_and_bytes() {
 }
 
 #[test]
+fn converts_geoip_dat_to_mmdb_and_filters_dat() {
+    let dat = build_geoip_db_to_memory(
+        [
+            ("cn".to_string(), ip_set(["1.0.1.0/24"])),
+            ("us".to_string(), ip_set(["8.8.8.0/24"])),
+        ],
+        MmdbFormat::Dat,
+    )
+    .unwrap();
+
+    assert_eq!(list_geoip_dat_countries(&dat.bytes).unwrap(), ["CN", "US"]);
+
+    let filtered_dat = convert_geoip_db_to_memory_filtered(
+        &dat.bytes,
+        MmdbFormat::Dat,
+        &["cn".to_string()],
+        MmdbFormat::Dat,
+    )
+    .unwrap();
+    assert_eq!(filtered_dat.count, 1);
+    assert_eq!(
+        list_geoip_dat_countries(&filtered_dat.bytes).unwrap(),
+        ["CN"]
+    );
+
+    let mmdb = convert_geoip_db_to_memory_filtered(
+        &dat.bytes,
+        MmdbFormat::Dat,
+        &["us".to_string()],
+        MmdbFormat::Mmdb,
+    )
+    .unwrap();
+    assert_eq!(mmdb.count, 1);
+    assert_eq!(
+        list_geoip_mmdb_countries_from_bytes(&mmdb.bytes).unwrap(),
+        ["us"]
+    );
+}
+
+#[test]
+fn converts_geosite_dat_to_rules_and_filters_dat() {
+    let dat = build_geosite_dat_to_memory([
+        (
+            "cn".to_string(),
+            domain_result(["+.example.cn"], ["DOMAIN-KEYWORD,example"]),
+        ),
+        (
+            "us".to_string(),
+            domain_result(["example.com"], ["DOMAIN-REGEX,^ads\\\\."]),
+        ),
+    ])
+    .unwrap();
+
+    assert_eq!(list_geosite_dat_codes(&dat.bytes).unwrap(), ["CN", "US"]);
+
+    let filtered =
+        rule_converter::convert_geosite_dat_to_memory_filtered(&dat.bytes, &["us".to_string()])
+            .unwrap();
+    assert_eq!(filtered.count, 2);
+    assert_eq!(list_geosite_dat_codes(&filtered.bytes).unwrap(), ["US"]);
+
+    let outputs = export_geosite_dat_to_memory(
+        &dat.bytes,
+        &["cn".to_string()],
+        false,
+        RuleTarget::General,
+        OutputFormat::RuleSet,
+        BehaviorMode::Classical,
+    )
+    .unwrap();
+    assert_eq!(outputs.len(), 1);
+    let text = String::from_utf8(outputs[0].bytes.clone()).unwrap();
+    assert!(text.contains("DOMAIN-SUFFIX,example.cn"));
+    assert!(text.contains("DOMAIN-KEYWORD,example"));
+
+    let mut streamed = Vec::new();
+    let count = export_geosite_dat_general_ruleset_to_writer(
+        std::io::Cursor::new(&dat.bytes),
+        &mut streamed,
+        &["cn".to_string()],
+    )
+    .unwrap();
+    let streamed = String::from_utf8(streamed).unwrap();
+    assert_eq!(count, 2);
+    assert!(streamed.contains("DOMAIN-SUFFIX,example.cn"));
+    assert!(streamed.contains("DOMAIN-KEYWORD,example"));
+}
+
+#[test]
 fn filters_geoip_db_to_db() {
     let dir = temp_dir("geoip-filter-db");
     fs::create_dir_all(&dir).unwrap();
@@ -113,6 +206,26 @@ fn filters_asn_db_to_db() {
     );
 
     fs::remove_dir_all(dir).unwrap();
+}
+
+fn ip_set<const N: usize>(rules: [&str; N]) -> RuleSetOutput {
+    let mut builder = IpCidrSetBuilder::default();
+    for rule in rules {
+        builder.insert(rule).unwrap();
+    }
+    RuleSetOutput::Ipcidr(builder.finish().unwrap())
+}
+
+fn domain_result<const D: usize, const M: usize>(
+    domains: [&str; D],
+    mixed: [&str; M],
+) -> ConvertResult {
+    let rules = domains
+        .into_iter()
+        .chain(mixed)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    rule_converter::convert_rules(&rules, BehaviorMode::Classical).unwrap()
 }
 
 fn temp_dir(name: &str) -> PathBuf {

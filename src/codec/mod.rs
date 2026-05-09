@@ -1,3 +1,4 @@
+pub mod dat;
 pub mod db;
 pub mod egern;
 pub mod generic;

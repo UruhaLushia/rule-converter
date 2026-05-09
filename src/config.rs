@@ -52,6 +52,7 @@ pub enum DbConfigJob {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DbTarget {
     Geoip,
+    Geosite,
     Asn,
 }
 
@@ -59,6 +60,8 @@ impl DbTarget {
     pub fn parse(value: &str) -> Option<Self> {
         if value.eq_ignore_ascii_case("geoip") {
             Some(Self::Geoip)
+        } else if value.eq_ignore_ascii_case("geosite") {
+            Some(Self::Geosite)
         } else if value.eq_ignore_ascii_case("asn") {
             Some(Self::Asn)
         } else {
@@ -69,6 +72,7 @@ impl DbTarget {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Geoip => "geoip",
+            Self::Geosite => "geosite",
             Self::Asn => "asn",
         }
     }
@@ -162,6 +166,7 @@ struct ConfigRuleInputPath {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ConfigCountryInputPath {
+    #[serde(alias = "code")]
     country: String,
     path: PathBuf,
     target: Option<String>,
@@ -184,7 +189,13 @@ struct ConfigAsnInputPath {
 struct ConfigOutputFile {
     path: Option<PathBuf>,
     dir: Option<PathBuf>,
-    #[serde(default, alias = "country", alias = "countrys")]
+    #[serde(
+        default,
+        alias = "country",
+        alias = "countrys",
+        alias = "code",
+        alias = "codes"
+    )]
     countries: Option<OneOrMany<String>>,
     #[serde(default, alias = "asn")]
     asns: Option<OneOrMany<u32>>,
@@ -277,7 +288,9 @@ impl ConfigInputFile {
             (None, Some(inputs)) if !inputs.is_empty() => inputs
                 .into_iter()
                 .map(|path| match path {
-                    ConfigInputPath::Country(path) if target == DbTarget::Geoip => {
+                    ConfigInputPath::Country(path)
+                        if matches!(target, DbTarget::Geoip | DbTarget::Geosite) =>
+                    {
                         let options = merge_input_options(
                             path.target,
                             path.format,
@@ -302,7 +315,9 @@ impl ConfigInputFile {
                         })
                     }
                     ConfigInputPath::Country(_) => bail!("ASN DB input needs asn and path"),
-                    ConfigInputPath::Asn(_) => bail!("GeoIP DB input needs country and path"),
+                    ConfigInputPath::Asn(_) => {
+                        bail!("{} DB input needs country and path", target.as_str())
+                    }
                     ConfigInputPath::Path(_) => bail!(
                         "{} DB build input needs typed path entries",
                         target.as_str()
@@ -673,10 +688,13 @@ fn parse_db_format(format: Option<&str>) -> Result<MmdbFormat> {
 }
 
 fn validate_db_format(target: DbTarget, format: MmdbFormat) -> Result<()> {
-    if target == DbTarget::Asn && format != MmdbFormat::Mmdb {
-        bail!("ASN target only supports mmdb format");
+    match target {
+        DbTarget::Geoip => Ok(()),
+        DbTarget::Geosite if format == MmdbFormat::Dat => Ok(()),
+        DbTarget::Geosite => bail!("geosite target only supports dat format"),
+        DbTarget::Asn if format == MmdbFormat::Mmdb => Ok(()),
+        DbTarget::Asn => bail!("ASN target only supports mmdb format"),
     }
-    Ok(())
 }
 
 fn resolve_config_path(base: &Path, path: PathBuf) -> PathBuf {
@@ -1224,6 +1242,88 @@ jobs:
                 assert_eq!(asns, &vec![13335]);
             }
             _ => panic!("expected asn convert job"),
+        }
+    }
+
+    #[test]
+    fn parses_geosite_dat_jobs_with_code_alias() {
+        let raw = r#"
+jobs:
+  - input:
+      path: geosite.dat
+      target: geosite
+      format: dat
+    outputs:
+      - dir: geosite
+        target: general
+        format: ruleset
+      - path: cn.dat
+        target: geosite
+        format: dat
+        code: cn
+  - input:
+      inputs:
+        - code: cn
+          path: cn.yaml
+          target: mihomo
+          format: yaml
+          behavior: classical
+    output:
+      path: geosite.dat
+      target: geosite
+      format: dat
+"#;
+        let config: ConfigFile = serde_yaml::from_str(raw).unwrap();
+        let jobs = config.into_jobs(Path::new("/tmp/base")).unwrap();
+
+        assert_eq!(jobs.len(), 3);
+        match &jobs[0] {
+            ConfigJob::Db(DbConfigJob::Export {
+                target,
+                format,
+                output,
+                countries,
+                ..
+            }) => {
+                assert_eq!(target, &DbTarget::Geosite);
+                assert_eq!(format, &MmdbFormat::Dat);
+                assert_eq!(output.base, PathBuf::from("/tmp/base/geosite"));
+                assert!(countries.is_empty());
+            }
+            _ => panic!("expected geosite export job"),
+        }
+        match &jobs[1] {
+            ConfigJob::Db(DbConfigJob::Convert {
+                target,
+                input_format,
+                output_format,
+                countries,
+                ..
+            }) => {
+                assert_eq!(target, &DbTarget::Geosite);
+                assert_eq!(input_format, &MmdbFormat::Dat);
+                assert_eq!(output_format, &MmdbFormat::Dat);
+                assert_eq!(countries, &vec!["cn".to_string()]);
+            }
+            _ => panic!("expected geosite convert job"),
+        }
+        match &jobs[2] {
+            ConfigJob::Db(DbConfigJob::Build { target, input, .. }) => {
+                assert_eq!(target, &DbTarget::Geosite);
+                assert_eq!(
+                    input,
+                    &vec![DbInputPath::Country {
+                        country: "cn".to_string(),
+                        input: FileInput {
+                            path: PathBuf::from("/tmp/base/cn.yaml"),
+                            target: Some(RuleTarget::Mihomo),
+                            format: Some(InputFormat::Yaml),
+                            behavior: InputBehaviorMode::Classical,
+                        },
+                    }]
+                );
+            }
+            _ => panic!("expected geosite build job"),
         }
     }
 

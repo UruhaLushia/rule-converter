@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -6,12 +7,17 @@ use clap::{Parser, ValueEnum};
 use rule_converter::{
     Behavior, BehaviorMode, ConfigJob, ConvertOptions, DbConfigJob, DbExportOutput, DbInputPath,
     DbTarget, FileInput, InputBehaviorMode, OutputFile, OutputFormat, RuleConfigJob, RuleSetOutput,
-    RuleTarget, build_asn_mmdb_from_rule_sets, build_geoip_mmdb_from_rule_sets,
-    collect_asn_mmdb_rule_set, collect_asn_mmdb_rule_sets, collect_geoip_mmdb_rule_set,
-    collect_geoip_mmdb_rule_sets, convert_asn_mmdb, convert_file_inputs,
-    convert_file_inputs_to_path_streaming, convert_geoip_mmdb_filtered, convert_rule_set_output,
-    export_asn_mmdb_ipset_to_path, export_asn_mmdb_mrs_to_path, export_geoip_mmdb_ipset_to_path,
-    export_geoip_mmdb_mrs_to_path, list_asn_mmdb_asns, list_geoip_mmdb_countries, load_config,
+    RuleTarget, build_asn_mmdb_from_rule_sets, build_geoip_dat_from_rule_sets,
+    build_geoip_mmdb_from_rule_sets, build_geosite_dat_from_rule_sets, collect_asn_mmdb_rule_set,
+    collect_asn_mmdb_rule_sets, collect_geoip_dat_rule_set, collect_geoip_dat_rule_sets,
+    collect_geoip_mmdb_rule_set, collect_geoip_mmdb_rule_sets, collect_geosite_dat_rule_set,
+    collect_geosite_dat_rule_sets, convert_asn_mmdb, convert_file_inputs,
+    convert_file_inputs_to_path_streaming, convert_geoip_db_to_memory_filtered,
+    convert_geoip_mmdb_filtered, convert_rule_set_output, export_asn_mmdb_ipset_to_path,
+    export_asn_mmdb_mrs_to_path, export_geoip_dat_ipset_to_dir, export_geoip_mmdb_ipset_to_path,
+    export_geoip_mmdb_mrs_to_path, export_geosite_dat_general_ruleset_to_dir,
+    export_geosite_dat_general_ruleset_to_path, filter_geoip_dat_to_path,
+    filter_geosite_dat_to_path, list_asn_mmdb_asns, list_geoip_mmdb_countries, load_config,
     write_outputs_as_owned,
 };
 
@@ -120,6 +126,32 @@ fn write_db_rule_set_output(
     report_result(files, skipped)
 }
 
+fn write_db_bytes_output(
+    path: &Path,
+    count: usize,
+    bytes: Vec<u8>,
+    name: &str,
+    format: rule_converter::MmdbFormat,
+) -> Result<()> {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, bytes)?;
+    eprintln!(
+        "wrote {count} records to {} ({name} {})",
+        path.display(),
+        format.as_str()
+    );
+    Ok(())
+}
+
+fn is_dat(format: rule_converter::MmdbFormat) -> bool {
+    format == rule_converter::MmdbFormat::Dat
+}
+
 fn db_export_base(output: &DbExportOutput, name: &str) -> PathBuf {
     if output.split {
         output.base.join(name)
@@ -155,6 +187,13 @@ fn can_stream_db_mrs(output: &DbExportOutput) -> bool {
         && output.behavior == BehaviorMode::Ipcidr
 }
 
+fn can_stream_geosite_general_ruleset(output: &DbExportOutput) -> bool {
+    !output.split
+        && output.target == RuleTarget::General
+        && output.format == OutputFormat::RuleSet
+        && output.behavior == BehaviorMode::Classical
+}
+
 fn ipset_output_file(count: usize, path: PathBuf) -> OutputFile {
     OutputFile {
         behavior: Behavior::Ipcidr,
@@ -173,6 +212,24 @@ fn mrs_output_file(count: usize, path: PathBuf) -> OutputFile {
     }
 }
 
+fn dat_ipset_output_file(count: usize, path: PathBuf) -> OutputFile {
+    OutputFile {
+        behavior: Behavior::Ipcidr,
+        format: OutputFormat::IpSet,
+        count,
+        path,
+    }
+}
+
+fn general_ruleset_output_file(count: usize, path: PathBuf) -> OutputFile {
+    OutputFile {
+        behavior: Behavior::Domain,
+        format: OutputFormat::RuleSet,
+        count,
+        path,
+    }
+}
+
 fn run_db_job(job: ConfigJob) -> Result<()> {
     let ConfigJob::Db(job) = job else {
         unreachable!("checked by caller")
@@ -181,7 +238,7 @@ fn run_db_job(job: ConfigJob) -> Result<()> {
     match job {
         DbConfigJob::Export {
             target,
-            format: _,
+            format,
             input,
             output,
             countries,
@@ -189,6 +246,30 @@ fn run_db_job(job: ConfigJob) -> Result<()> {
         } => match target {
             DbTarget::Geoip => {
                 ensure_db_export_filter_or_dir(&output, !countries.is_empty(), "GeoIP")?;
+                if is_dat(format) {
+                    if output.split
+                        && output.target == RuleTarget::General
+                        && output.format == OutputFormat::IpSet
+                        && output.behavior == BehaviorMode::Ipcidr
+                    {
+                        let files = export_geoip_dat_ipset_to_dir(input, &output.base, &countries)?
+                            .into_iter()
+                            .map(|file| dat_ipset_output_file(file.count, file.path))
+                            .collect();
+                        return report_result(files, Vec::new());
+                    }
+                    let raw = fs::read(input)?;
+                    if output.split {
+                        for set in collect_geoip_dat_rule_sets(&raw, &countries)? {
+                            let base = db_export_base(&output, &set.country);
+                            write_db_rule_set_output(&base, set.output, &output)?;
+                        }
+                    } else {
+                        let rule_set = collect_geoip_dat_rule_set(&raw, &countries)?;
+                        write_db_rule_set_output(&output.base, rule_set, &output)?;
+                    }
+                    return Ok(());
+                }
                 if can_stream_db_ipset(&output) {
                     let file = export_geoip_mmdb_ipset_to_path(input, &output.base, &countries)?;
                     return report_result(
@@ -208,6 +289,55 @@ fn run_db_job(job: ConfigJob) -> Result<()> {
                 } else {
                     let rule_set = collect_geoip_mmdb_rule_set(input, &countries)?;
                     write_db_rule_set_output(&output.base, rule_set, &output)?;
+                }
+            }
+            DbTarget::Geosite => {
+                ensure_db_export_filter_or_dir(&output, !countries.is_empty(), "Geosite")?;
+                if is_dat(format) {
+                    if can_stream_geosite_general_ruleset(&output) {
+                        let count = export_geosite_dat_general_ruleset_to_path(
+                            input,
+                            &output.base,
+                            &countries,
+                        )?;
+                        return report_result(
+                            vec![general_ruleset_output_file(count, output.base)],
+                            Vec::new(),
+                        );
+                    }
+                    if output.split
+                        && output.target == RuleTarget::General
+                        && output.format == OutputFormat::RuleSet
+                        && output.behavior == BehaviorMode::Classical
+                    {
+                        let files = export_geosite_dat_general_ruleset_to_dir(
+                            input,
+                            &output.base,
+                            &countries,
+                        )?
+                        .into_iter()
+                        .map(|file| general_ruleset_output_file(file.count, file.path))
+                        .collect();
+                        return report_result(files, Vec::new());
+                    }
+                }
+                let raw = fs::read(input)?;
+                if output.split {
+                    for set in collect_geosite_dat_rule_sets(&raw, &countries)? {
+                        let base = db_export_base(&output, &set.code);
+                        let (files, skipped) = write_outputs_as_owned(
+                            set.into_result(),
+                            &base,
+                            output.target,
+                            output.format,
+                        )?;
+                        report_result(files, skipped)?;
+                    }
+                } else {
+                    let result = collect_geosite_dat_rule_set(&raw, &countries)?;
+                    let (files, skipped) =
+                        write_outputs_as_owned(result, &output.base, output.target, output.format)?;
+                    report_result(files, skipped)?;
                 }
             }
             DbTarget::Asn => {
@@ -248,12 +378,39 @@ fn run_db_job(job: ConfigJob) -> Result<()> {
                     };
                     entries.push((country, collect_ip_rule_set(input)?));
                 }
+                if is_dat(format) {
+                    let (count, bytes) = build_geoip_dat_from_rule_sets(entries)?;
+                    write_db_bytes_output(&output, count, bytes, "geoip", format)?;
+                    return Ok(());
+                }
                 let count = build_geoip_mmdb_from_rule_sets(entries, &output, format)?;
                 eprintln!(
                     "wrote {count} CIDR records to {} (geoip {})",
                     output.display(),
                     format.as_str()
                 );
+            }
+            DbTarget::Geosite => {
+                let mut entries = Vec::new();
+                for item in input {
+                    let DbInputPath::Country { country, input } = item else {
+                        anyhow::bail!("Geosite build needs country paths");
+                    };
+                    let result = convert_file_inputs(
+                        [input],
+                        ConvertOptions {
+                            input_target: None,
+                            input_format: None,
+                            input_behavior: InputBehaviorMode::Auto,
+                            output_target: RuleTarget::General,
+                            output_format: OutputFormat::RuleSet,
+                            output_behavior: BehaviorMode::Classical,
+                        },
+                    )?;
+                    entries.push((country, result));
+                }
+                let (count, bytes) = build_geosite_dat_from_rule_sets(entries)?;
+                write_db_bytes_output(&output, count, bytes, "geosite", format)?;
             }
             DbTarget::Asn => {
                 let mut entries = Vec::new();
@@ -269,7 +426,7 @@ fn run_db_job(job: ConfigJob) -> Result<()> {
         },
         DbConfigJob::Convert {
             target,
-            input_format: _,
+            input_format,
             output_format,
             input,
             output,
@@ -277,9 +434,37 @@ fn run_db_job(job: ConfigJob) -> Result<()> {
             asns,
         } => match target {
             DbTarget::Geoip => {
+                if is_dat(input_format) && is_dat(output_format) {
+                    let count = filter_geoip_dat_to_path(input, &output, &countries)?;
+                    eprintln!(
+                        "wrote {count} records to {} (geoip {})",
+                        output.display(),
+                        output_format.as_str()
+                    );
+                    return Ok(());
+                }
+                if is_dat(input_format) || is_dat(output_format) {
+                    let raw = fs::read(input)?;
+                    let db = convert_geoip_db_to_memory_filtered(
+                        raw,
+                        input_format,
+                        &countries,
+                        output_format,
+                    )?;
+                    write_db_bytes_output(&output, db.count, db.bytes, "geoip", output_format)?;
+                    return Ok(());
+                }
                 let count = convert_geoip_mmdb_filtered(input, &output, output_format, &countries)?;
                 eprintln!(
                     "wrote {count} CIDR records to {} (geoip {})",
+                    output.display(),
+                    output_format.as_str()
+                );
+            }
+            DbTarget::Geosite => {
+                let count = filter_geosite_dat_to_path(input, &output, &countries)?;
+                eprintln!(
+                    "wrote {count} records to {} (geosite {})",
                     output.display(),
                     output_format.as_str()
                 );

@@ -32,3 +32,4 @@ toml = { version = "1", optional = true }
 rayon = { version = "1.12", optional = true }
 maxminddb = "0.28"
 maxminddb-writer = "0.1"
+prost = "0.14"

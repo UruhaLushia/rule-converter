@@ -98,6 +98,47 @@ format = "sing-db"
 
 [[jobs]]
 [jobs.input]
+path = "geoip.dat"
+target = "geoip"
+format = "dat"
+[[jobs.outputs]]
+dir = "dist/geoip-dat"
+target = "general"
+format = "ipset"
+[[jobs.outputs]]
+path = "dist/geoip-cn.dat"
+target = "geoip"
+format = "dat"
+country = "cn"
+
+[[jobs]]
+[jobs.input]
+path = "geosite.dat"
+target = "geosite"
+format = "dat"
+[[jobs.outputs]]
+dir = "dist/geosite"
+target = "general"
+format = "ruleset"
+behavior = "classical"
+[[jobs.outputs]]
+path = "dist/geosite-cn.dat"
+target = "geosite"
+format = "dat"
+code = "cn"
+
+[[jobs]]
+[jobs.input]
+inputs = [
+  { code = "cn", path = "dist/geosite/cn.list", target = "general", format = "ruleset", behavior = "classical" },
+]
+[jobs.output]
+path = "dist/geosite.dat"
+target = "geosite"
+format = "dat"
+
+[[jobs]]
+[jobs.input]
 path = "asn.mmdb"
 target = "asn"
 format = "mmdb"

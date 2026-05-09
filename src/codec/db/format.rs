@@ -5,6 +5,7 @@ pub enum MmdbFormat {
     Mmdb,
     SingDb,
     MetaDb,
+    Dat,
 }
 
 impl MmdbFormat {
@@ -13,6 +14,7 @@ impl MmdbFormat {
             "mmdb" => Ok(Self::Mmdb),
             "sing-db" | "singdb" => Ok(Self::SingDb),
             "metadb" | "meta-db" => Ok(Self::MetaDb),
+            "dat" => Ok(Self::Dat),
             other => bail!("unsupported MMDB format: {other}"),
         }
     }
@@ -22,6 +24,7 @@ impl MmdbFormat {
             Self::Mmdb => "mmdb",
             Self::SingDb => "sing-db",
             Self::MetaDb => "metadb",
+            Self::Dat => "dat",
         }
     }
 }
