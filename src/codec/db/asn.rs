@@ -85,6 +85,58 @@ pub fn export_asn_mmdb_ipset_to_path(
         64 * 1024,
         File::create(output).with_context(|| format!("failed to create {}", output.display()))?,
     );
+    let count = write_asn_mmdb_reader_ipset(reader, &filter, &mut writer)?;
+
+    Ok(AsnOutputFile {
+        asn: if asns.len() == 1 { asns[0] } else { 0 },
+        count,
+        path: output.to_path_buf(),
+    })
+}
+
+pub fn export_asn_mmdb_ipset_to_bytes(input: &[u8], asns: &[u32]) -> Result<(usize, Vec<u8>)> {
+    let reader = Reader::from_source(input).context("failed to read ASN MMDB payload")?;
+    let filter = normalize_asn_filter(asns);
+    let mut output = Vec::with_capacity(64 * 1024);
+    let count = write_asn_mmdb_reader_ipset(reader, &filter, &mut output)?;
+    Ok((count, output))
+}
+
+pub fn export_asn_mmdb_file_ipset_to_bytes(
+    input: impl AsRef<Path>,
+    asns: &[u32],
+) -> Result<(usize, Vec<u8>)> {
+    let input = input.as_ref();
+    let reader = Reader::open_readfile(input)
+        .with_context(|| format!("failed to read ASN MMDB {}", input.display()))?;
+    let filter = normalize_asn_filter(asns);
+    let mut output = Vec::with_capacity(64 * 1024);
+    let count = write_asn_mmdb_reader_ipset(reader, &filter, &mut output)?;
+    Ok((count, output))
+}
+
+pub fn export_asn_mmdb_ipset_to_string(input: &[u8], asns: &[u32]) -> Result<(usize, String)> {
+    let reader = Reader::from_source(input).context("failed to read ASN MMDB payload")?;
+    let filter = normalize_asn_filter(asns);
+    write_asn_mmdb_reader_ipset_string(reader, &filter)
+}
+
+pub fn export_asn_mmdb_file_ipset_to_string(
+    input: impl AsRef<Path>,
+    asns: &[u32],
+) -> Result<(usize, String)> {
+    let input = input.as_ref();
+    let reader = Reader::open_readfile(input)
+        .with_context(|| format!("failed to read ASN MMDB {}", input.display()))?;
+    let filter = normalize_asn_filter(asns);
+    write_asn_mmdb_reader_ipset_string(reader, &filter)
+}
+
+fn write_asn_mmdb_reader_ipset<S: AsRef<[u8]>, W: Write>(
+    reader: Reader<S>,
+    filter: &Option<BTreeSet<u32>>,
+    writer: &mut W,
+) -> Result<usize> {
     let mut count = 0usize;
 
     for item in reader.networks(WithinOptions::default())? {
@@ -102,11 +154,34 @@ pub fn export_asn_mmdb_ipset_to_path(
     if count == 0 {
         bail!("ASN input does not contain any ASN records");
     }
-    Ok(AsnOutputFile {
-        asn: if asns.len() == 1 { asns[0] } else { 0 },
-        count,
-        path: output.to_path_buf(),
-    })
+    Ok(count)
+}
+
+fn write_asn_mmdb_reader_ipset_string<S: AsRef<[u8]>>(
+    reader: Reader<S>,
+    filter: &Option<BTreeSet<u32>>,
+) -> Result<(usize, String)> {
+    use std::fmt::Write as _;
+
+    let mut output = String::with_capacity(64 * 1024);
+    let mut count = 0usize;
+
+    for item in reader.networks(WithinOptions::default())? {
+        let item = item.context("failed to read ASN MMDB network")?;
+        let Some(asn) = decode_asn(&item)? else {
+            continue;
+        };
+        if filter.as_ref().is_some_and(|filter| !filter.contains(&asn)) {
+            continue;
+        }
+        writeln!(&mut output, "{}", item.network()?).expect("writing to String cannot fail");
+        count += 1;
+    }
+
+    if count == 0 {
+        bail!("ASN input does not contain any ASN records");
+    }
+    Ok((count, output))
 }
 
 pub fn export_asn_mmdb_mrs_to_path(

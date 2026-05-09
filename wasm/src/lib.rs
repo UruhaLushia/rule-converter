@@ -5,9 +5,9 @@ use rule_converter::{
     BehaviorMode, ConvertOptions as CoreConvertOptions, InputBehaviorMode, InputFormat, MmdbFormat,
     OutputFormat, RuleSetOutput, RuleTarget, build_asn_mmdb_to_memory, build_geoip_mmdb_to_memory,
     convert_asn_mmdb_to_memory_filtered, convert_geoip_mmdb_to_memory_filtered, convert_payload,
-    default_output_behavior, export_asn_mmdb_to_memory, export_geoip_mmdb_to_memory,
-    list_asn_mmdb_asns_from_bytes, list_geoip_mmdb_countries_from_bytes,
-    write_outputs_as_to_memory_owned,
+    default_output_behavior, export_asn_mmdb_to_ipset_string, export_asn_mmdb_to_memory,
+    export_geoip_mmdb_to_ipset_string, export_geoip_mmdb_to_memory, list_asn_mmdb_asns_from_bytes,
+    list_geoip_mmdb_countries_from_bytes, write_outputs_as_to_memory_owned,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -82,12 +82,14 @@ pub fn str_to_buf_wasm(payload: &str, options: JsValue) -> Result<JsValue, JsVal
 
 #[wasm_bindgen(js_name = bufToStr)]
 pub fn buf_to_str_wasm(payload: &[u8], options: JsValue) -> Result<JsValue, JsValue> {
-    any_js_to_string(buf_to_buf_wasm(payload, options)?)
+    let options = parse_any_options(options)?;
+    convert_any_payload_to_string_js(payload, options)
 }
 
 #[wasm_bindgen(js_name = strToStr)]
 pub fn str_to_str_wasm(payload: &str, options: JsValue) -> Result<JsValue, JsValue> {
-    any_js_to_string(str_to_buf_wasm(payload, options)?)
+    let options = parse_any_options(options)?;
+    convert_any_payload_to_string_js(payload.as_bytes(), options)
 }
 
 #[wasm_bindgen(js_name = listGeoipCountries)]
@@ -119,6 +121,21 @@ fn convert_any_payload_to_js(
         }
         AnyTarget::Geoip => convert_geoip_payload_any_to_js(payload, options),
         AnyTarget::Asn => convert_asn_payload_any_to_js(payload, options),
+    }
+}
+
+fn convert_any_payload_to_string_js(
+    payload: &[u8],
+    options: AnyConvertOptions,
+) -> Result<JsValue, JsValue> {
+    match parse_any_target(options.input_target.as_deref(), true)? {
+        AnyTarget::Rule(input_target) => any_js_to_string(convert_rule_payload_any_to_js(
+            payload,
+            input_target,
+            options,
+        )?),
+        AnyTarget::Geoip => convert_geoip_payload_any_to_string_js(payload, options),
+        AnyTarget::Asn => convert_asn_payload_any_to_string_js(payload, options),
     }
 }
 
@@ -263,6 +280,18 @@ fn convert_geoip_payload_any_to_js(
     }
 }
 
+fn convert_geoip_payload_any_to_string_js(
+    payload: &[u8],
+    options: AnyConvertOptions,
+) -> Result<JsValue, JsValue> {
+    if can_use_db_ipset_string_fast_path(&options)? {
+        let countries = options.countries.unwrap_or_default();
+        let output = export_geoip_mmdb_to_ipset_string(payload, &countries).map_err(to_js_error)?;
+        return any_db_string_to_js(output);
+    }
+    any_js_to_string(convert_geoip_payload_any_to_js(payload, options)?)
+}
+
 fn convert_asn_payload_any_to_js(
     payload: &[u8],
     options: AnyConvertOptions,
@@ -306,6 +335,18 @@ fn convert_asn_payload_any_to_js(
         }
         AnyTarget::Geoip => Err(to_js_error("cannot convert asn DB to geoip DB")),
     }
+}
+
+fn convert_asn_payload_any_to_string_js(
+    payload: &[u8],
+    options: AnyConvertOptions,
+) -> Result<JsValue, JsValue> {
+    if can_use_db_ipset_string_fast_path(&options)? {
+        let asns = options.asns.unwrap_or_default();
+        let output = export_asn_mmdb_to_ipset_string(payload, &asns).map_err(to_js_error)?;
+        return any_db_string_to_js(output);
+    }
+    any_js_to_string(convert_asn_payload_any_to_js(payload, options)?)
 }
 
 fn parse_any_target(
@@ -394,6 +435,23 @@ fn any_db_to_js(output: rule_converter::DbBytesOutput) -> Result<JsValue, JsValu
     )
 }
 
+fn any_db_string_to_js(output: rule_converter::DbStringOutput) -> Result<JsValue, JsValue> {
+    let name = output.name;
+    any_to_value(&AnyStringResult {
+        kind: "rules".to_string(),
+        outputs: BTreeMap::from([(name.clone(), output.text)]),
+        info: BTreeMap::from([(
+            name,
+            AnyOutputInfo {
+                behavior: Some(output.behavior.as_str().to_string()),
+                format: output.format.as_str().to_string(),
+                count: output.count,
+            },
+        )]),
+        skipped: Vec::new(),
+    })
+}
+
 fn any_parts_to_js(
     kind: &str,
     outputs: BTreeMap<String, Vec<u8>>,
@@ -426,6 +484,34 @@ fn any_parts_to_js(
         )?,
     )?;
     Ok(result.into())
+}
+
+fn can_use_db_ipset_string_fast_path(options: &AnyConvertOptions) -> Result<bool, JsValue> {
+    if options.split.unwrap_or(true) {
+        return Ok(false);
+    }
+    let AnyTarget::Rule(output_target) = parse_any_target(options.output_target.as_deref(), false)?
+    else {
+        return Ok(false);
+    };
+    let output_target = output_target.unwrap_or(RuleTarget::General);
+    let output_format = options
+        .output_format
+        .as_deref()
+        .map(OutputFormat::parse_arg)
+        .transpose()
+        .map_err(to_js_error)?
+        .unwrap_or(OutputFormat::IpSet);
+    let output_behavior = options
+        .output_behavior
+        .as_deref()
+        .map(BehaviorMode::parse_arg)
+        .transpose()
+        .map_err(to_js_error)?
+        .unwrap_or_else(|| default_output_behavior(output_target, output_format));
+    Ok(output_target == RuleTarget::General
+        && output_format == OutputFormat::IpSet
+        && output_behavior == BehaviorMode::Ipcidr)
 }
 
 fn any_js_to_string(value: JsValue) -> Result<JsValue, JsValue> {

@@ -25,6 +25,15 @@ pub struct DbBytesOutput {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DbStringOutput {
+    pub name: String,
+    pub behavior: Behavior,
+    pub format: OutputFormat,
+    pub count: usize,
+    pub text: String,
+}
+
 pub fn export_geoip_mmdb_to_memory(
     input: impl AsRef<[u8]>,
     countries: &[String],
@@ -35,6 +44,16 @@ pub fn export_geoip_mmdb_to_memory(
 ) -> Result<Vec<DbMemoryOutput>> {
     let input = input.as_ref();
     let behavior = normalize_db_output_behavior(target, format, behavior);
+    if can_stream_ipset(split, target, format, behavior) {
+        let (count, bytes) = crate::codec::db::export_geoip_mmdb_ipset_to_bytes(input, countries)?;
+        return Ok(vec![DbMemoryOutput {
+            name: "geoip".to_string(),
+            behavior: Behavior::Ipcidr,
+            format,
+            count,
+            bytes,
+        }]);
+    }
     if split {
         let sets = crate::codec::db::collect_geoip_mmdb_rule_sets_from_bytes(input, countries)?;
         let mut outputs = Vec::new();
@@ -63,6 +82,17 @@ pub fn export_geoip_mmdb_file_to_memory(
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
     let behavior = normalize_db_output_behavior(target, format, behavior);
+    if can_stream_ipset(split, target, format, behavior) {
+        let (count, bytes) =
+            crate::codec::db::export_geoip_mmdb_file_ipset_to_bytes(input, countries)?;
+        return Ok(vec![DbMemoryOutput {
+            name: "geoip".to_string(),
+            behavior: Behavior::Ipcidr,
+            format,
+            count,
+            bytes,
+        }]);
+    }
     if split {
         let sets = crate::codec::db::collect_geoip_mmdb_rule_sets(input, countries)?;
         let mut outputs = Vec::new();
@@ -92,6 +122,16 @@ pub fn export_asn_mmdb_to_memory(
 ) -> Result<Vec<DbMemoryOutput>> {
     let input = input.as_ref();
     let behavior = normalize_db_output_behavior(target, format, behavior);
+    if can_stream_ipset(split, target, format, behavior) {
+        let (count, bytes) = crate::codec::db::export_asn_mmdb_ipset_to_bytes(input, asns)?;
+        return Ok(vec![DbMemoryOutput {
+            name: "asn".to_string(),
+            behavior: Behavior::Ipcidr,
+            format,
+            count,
+            bytes,
+        }]);
+    }
     if split {
         let sets = crate::codec::db::collect_asn_mmdb_rule_sets_from_bytes(input, asns)?;
         let mut outputs = Vec::new();
@@ -120,6 +160,16 @@ pub fn export_asn_mmdb_file_to_memory(
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
     let behavior = normalize_db_output_behavior(target, format, behavior);
+    if can_stream_ipset(split, target, format, behavior) {
+        let (count, bytes) = crate::codec::db::export_asn_mmdb_file_ipset_to_bytes(input, asns)?;
+        return Ok(vec![DbMemoryOutput {
+            name: "asn".to_string(),
+            behavior: Behavior::Ipcidr,
+            format,
+            count,
+            bytes,
+        }]);
+    }
     if split {
         let sets = crate::codec::db::collect_asn_mmdb_rule_sets(input, asns)?;
         let mut outputs = Vec::new();
@@ -137,6 +187,39 @@ pub fn export_asn_mmdb_file_to_memory(
 
     let rule_set = crate::codec::db::collect_asn_mmdb_rule_set(input, asns)?;
     db_rule_set_to_memory("asn", rule_set, target, format, behavior)
+}
+
+pub fn export_geoip_mmdb_to_ipset_string(
+    input: impl AsRef<[u8]>,
+    countries: &[String],
+) -> Result<DbStringOutput> {
+    let (count, text) =
+        crate::codec::db::export_geoip_mmdb_ipset_to_string(input.as_ref(), countries)?;
+    Ok(db_ipset_string_output("geoip", count, text))
+}
+
+pub fn export_geoip_mmdb_file_to_ipset_string(
+    input: impl AsRef<Path>,
+    countries: &[String],
+) -> Result<DbStringOutput> {
+    let (count, text) = crate::codec::db::export_geoip_mmdb_file_ipset_to_string(input, countries)?;
+    Ok(db_ipset_string_output("geoip", count, text))
+}
+
+pub fn export_asn_mmdb_to_ipset_string(
+    input: impl AsRef<[u8]>,
+    asns: &[u32],
+) -> Result<DbStringOutput> {
+    let (count, text) = crate::codec::db::export_asn_mmdb_ipset_to_string(input.as_ref(), asns)?;
+    Ok(db_ipset_string_output("asn", count, text))
+}
+
+pub fn export_asn_mmdb_file_to_ipset_string(
+    input: impl AsRef<Path>,
+    asns: &[u32],
+) -> Result<DbStringOutput> {
+    let (count, text) = crate::codec::db::export_asn_mmdb_file_ipset_to_string(input, asns)?;
+    Ok(db_ipset_string_output("asn", count, text))
 }
 
 pub fn convert_geoip_mmdb_to_memory(
@@ -303,5 +386,27 @@ fn normalize_db_output_behavior(
         (RuleTarget::General, OutputFormat::DomainSet, _) => BehaviorMode::Domain,
         (_, _, BehaviorMode::Auto) => BehaviorMode::Ipcidr,
         _ => behavior,
+    }
+}
+
+fn can_stream_ipset(
+    split: bool,
+    target: RuleTarget,
+    format: OutputFormat,
+    behavior: BehaviorMode,
+) -> bool {
+    !split
+        && target == RuleTarget::General
+        && format == OutputFormat::IpSet
+        && behavior == BehaviorMode::Ipcidr
+}
+
+fn db_ipset_string_output(name: &str, count: usize, text: String) -> DbStringOutput {
+    DbStringOutput {
+        name: name.to_string(),
+        behavior: Behavior::Ipcidr,
+        format: OutputFormat::IpSet,
+        count,
+        text,
     }
 }

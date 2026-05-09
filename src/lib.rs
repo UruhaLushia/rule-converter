@@ -8,18 +8,20 @@ mod rules;
 mod target;
 
 pub use api::{
-    ConvertOptions, ConvertResult, DbBytesOutput, DbMemoryOutput, FileInput, SkippedRule,
-    build_asn_mmdb_to_memory, build_geoip_mmdb_to_memory, convert_asn_mmdb_file_to_memory,
-    convert_asn_mmdb_file_to_memory_filtered, convert_asn_mmdb_to_memory,
-    convert_asn_mmdb_to_memory_filtered, convert_file, convert_file_inputs,
-    convert_file_inputs_to_path_streaming, convert_files, convert_files_to_path_streaming,
-    convert_geoip_mmdb_file_to_memory, convert_geoip_mmdb_file_to_memory_filtered,
-    convert_geoip_mmdb_to_memory, convert_geoip_mmdb_to_memory_filtered, convert_payload,
-    convert_rule_set_output, convert_rules, default_output_behavior,
-    export_asn_mmdb_file_to_memory, export_asn_mmdb_to_memory, export_geoip_mmdb_file_to_memory,
-    export_geoip_mmdb_to_memory, write_outputs, write_outputs_as, write_outputs_as_owned,
-    write_outputs_as_to_memory_owned, write_outputs_owned, write_outputs_to_memory,
-    write_outputs_to_memory_owned,
+    ConvertOptions, ConvertResult, DbBytesOutput, DbMemoryOutput, DbStringOutput, FileInput,
+    SkippedRule, build_asn_mmdb_to_memory, build_geoip_mmdb_to_memory,
+    convert_asn_mmdb_file_to_memory, convert_asn_mmdb_file_to_memory_filtered,
+    convert_asn_mmdb_to_memory, convert_asn_mmdb_to_memory_filtered, convert_file,
+    convert_file_inputs, convert_file_inputs_to_path_streaming, convert_files,
+    convert_files_to_path_streaming, convert_geoip_mmdb_file_to_memory,
+    convert_geoip_mmdb_file_to_memory_filtered, convert_geoip_mmdb_to_memory,
+    convert_geoip_mmdb_to_memory_filtered, convert_payload, convert_rule_set_output, convert_rules,
+    default_output_behavior, export_asn_mmdb_file_to_ipset_string, export_asn_mmdb_file_to_memory,
+    export_asn_mmdb_to_ipset_string, export_asn_mmdb_to_memory,
+    export_geoip_mmdb_file_to_ipset_string, export_geoip_mmdb_file_to_memory,
+    export_geoip_mmdb_to_ipset_string, export_geoip_mmdb_to_memory, write_outputs,
+    write_outputs_as, write_outputs_as_owned, write_outputs_as_to_memory_owned,
+    write_outputs_owned, write_outputs_to_memory, write_outputs_to_memory_owned,
 };
 pub use codec::db::{
     AsnCidrSet, AsnOutputFile, AsnRuleSet, GeoipCidrSet, GeoipOutputFile, GeoipRuleSet, MmdbFormat,
@@ -34,10 +36,13 @@ pub use codec::db::{
     convert_asn_mmdb_to_bytes, convert_geoip_mmdb, convert_geoip_mmdb_file_to_bytes,
     convert_geoip_mmdb_file_to_bytes_filtered, convert_geoip_mmdb_filtered,
     convert_geoip_mmdb_to_bytes, convert_geoip_mmdb_to_bytes_filtered,
-    export_asn_mmdb_ipset_to_path, export_asn_mmdb_mrs_to_path, export_asn_mmdb_to_dir,
-    export_geoip_mmdb_ipset_to_path, export_geoip_mmdb_mrs_to_path, export_geoip_mmdb_to_dir,
-    list_asn_mmdb_asns, list_asn_mmdb_asns_from_bytes, list_geoip_mmdb_countries,
-    list_geoip_mmdb_countries_from_bytes,
+    export_asn_mmdb_file_ipset_to_bytes, export_asn_mmdb_file_ipset_to_string,
+    export_asn_mmdb_ipset_to_bytes, export_asn_mmdb_ipset_to_path, export_asn_mmdb_ipset_to_string,
+    export_asn_mmdb_mrs_to_path, export_asn_mmdb_to_dir, export_geoip_mmdb_file_ipset_to_bytes,
+    export_geoip_mmdb_file_ipset_to_string, export_geoip_mmdb_ipset_to_bytes,
+    export_geoip_mmdb_ipset_to_path, export_geoip_mmdb_ipset_to_string,
+    export_geoip_mmdb_mrs_to_path, export_geoip_mmdb_to_dir, list_asn_mmdb_asns,
+    list_asn_mmdb_asns_from_bytes, list_geoip_mmdb_countries, list_geoip_mmdb_countries_from_bytes,
 };
 #[cfg(feature = "config")]
 pub use config::{

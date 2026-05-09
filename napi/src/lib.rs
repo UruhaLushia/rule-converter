@@ -8,10 +8,12 @@ use rule_converter::{
     build_asn_mmdb_to_memory, build_geoip_mmdb_to_memory, convert_asn_mmdb_file_to_memory_filtered,
     convert_asn_mmdb_to_memory_filtered, convert_file_inputs,
     convert_geoip_mmdb_file_to_memory_filtered, convert_geoip_mmdb_to_memory_filtered,
-    convert_payload, default_output_behavior, export_asn_mmdb_file_to_memory,
-    export_asn_mmdb_to_memory, export_geoip_mmdb_file_to_memory, export_geoip_mmdb_to_memory,
-    list_asn_mmdb_asns, list_asn_mmdb_asns_from_bytes, list_geoip_mmdb_countries,
-    list_geoip_mmdb_countries_from_bytes, write_outputs_as_to_memory_owned,
+    convert_payload, default_output_behavior, export_asn_mmdb_file_to_ipset_string,
+    export_asn_mmdb_file_to_memory, export_asn_mmdb_to_ipset_string, export_asn_mmdb_to_memory,
+    export_geoip_mmdb_file_to_ipset_string, export_geoip_mmdb_file_to_memory,
+    export_geoip_mmdb_to_ipset_string, export_geoip_mmdb_to_memory, list_asn_mmdb_asns,
+    list_asn_mmdb_asns_from_bytes, list_geoip_mmdb_countries, list_geoip_mmdb_countries_from_bytes,
+    write_outputs_as_to_memory_owned,
 };
 
 type AnyFormatOption = String;
@@ -123,17 +125,17 @@ pub fn buf_to_str(
     input: Uint8Array,
     options: Option<AnyConvertOptions>,
 ) -> Result<AnyStringResult> {
-    any_buffer_result_to_string(buf_to_buf(input, options)?)
+    convert_any_payload_to_string(input.as_ref(), options)
 }
 
 #[napi]
 pub fn str_to_str(input: String, options: Option<AnyConvertOptions>) -> Result<AnyStringResult> {
-    any_buffer_result_to_string(str_to_buf(input, options)?)
+    convert_any_payload_to_string(input.as_bytes(), options)
 }
 
 #[napi]
 pub fn file_to_str(input: String, options: Option<AnyConvertOptions>) -> Result<AnyStringResult> {
-    any_buffer_result_to_string(file_to_buf(input, options)?)
+    convert_any_file_to_string(input, options)
 }
 
 #[napi]
@@ -187,6 +189,34 @@ fn convert_any_payload_to_buffer_with_options(
         }
         AnyTarget::Geoip => convert_geoip_payload_any_to_buffer(payload, options),
         AnyTarget::Asn => convert_asn_payload_any_to_buffer(payload, options),
+    }
+}
+
+fn convert_any_file_to_string(
+    input: String,
+    options: Option<AnyConvertOptions>,
+) -> Result<AnyStringResult> {
+    let options = options.unwrap_or_default();
+    match parse_any_input_target(options.input_target.as_deref())? {
+        AnyTarget::Geoip => convert_geoip_file_any_to_string(input, options),
+        AnyTarget::Asn => convert_asn_file_any_to_string(input, options),
+        AnyTarget::Rule(input_target) => any_buffer_result_to_string(
+            convert_rule_file_any_to_buffer(input, input_target, options)?,
+        ),
+    }
+}
+
+fn convert_any_payload_to_string(
+    payload: &[u8],
+    options: Option<AnyConvertOptions>,
+) -> Result<AnyStringResult> {
+    let options = options.unwrap_or_default();
+    match parse_any_input_target(options.input_target.as_deref())? {
+        AnyTarget::Geoip => convert_geoip_payload_any_to_string(payload, options),
+        AnyTarget::Asn => convert_asn_payload_any_to_string(payload, options),
+        AnyTarget::Rule(input_target) => any_buffer_result_to_string(
+            convert_rule_payload_any_to_buffer(payload, input_target, options)?,
+        ),
     }
 }
 
@@ -399,6 +429,31 @@ fn convert_asn_file_any_to_buffer(
     }
 }
 
+fn convert_geoip_file_any_to_string(
+    input: String,
+    options: AnyConvertOptions,
+) -> Result<AnyStringResult> {
+    if can_use_db_ipset_string_fast_path(&options)? {
+        let countries = options.countries.unwrap_or_default();
+        let output =
+            export_geoip_mmdb_file_to_ipset_string(input, &countries).map_err(to_napi_error)?;
+        return Ok(any_db_string_result(output));
+    }
+    any_buffer_result_to_string(convert_geoip_file_any_to_buffer(input, options)?)
+}
+
+fn convert_asn_file_any_to_string(
+    input: String,
+    options: AnyConvertOptions,
+) -> Result<AnyStringResult> {
+    if can_use_db_ipset_string_fast_path(&options)? {
+        let asns = options.asns.unwrap_or_default();
+        let output = export_asn_mmdb_file_to_ipset_string(input, &asns).map_err(to_napi_error)?;
+        return Ok(any_db_string_result(output));
+    }
+    any_buffer_result_to_string(convert_asn_file_any_to_buffer(input, options)?)
+}
+
 fn convert_geoip_payload_any_to_buffer(
     payload: &[u8],
     options: AnyConvertOptions,
@@ -472,6 +527,31 @@ fn convert_asn_payload_any_to_buffer(
             "cannot convert asn DB to geoip DB",
         )),
     }
+}
+
+fn convert_geoip_payload_any_to_string(
+    payload: &[u8],
+    options: AnyConvertOptions,
+) -> Result<AnyStringResult> {
+    if can_use_db_ipset_string_fast_path(&options)? {
+        let countries = options.countries.unwrap_or_default();
+        let output =
+            export_geoip_mmdb_to_ipset_string(payload, &countries).map_err(to_napi_error)?;
+        return Ok(any_db_string_result(output));
+    }
+    any_buffer_result_to_string(convert_geoip_payload_any_to_buffer(payload, options)?)
+}
+
+fn convert_asn_payload_any_to_string(
+    payload: &[u8],
+    options: AnyConvertOptions,
+) -> Result<AnyStringResult> {
+    if can_use_db_ipset_string_fast_path(&options)? {
+        let asns = options.asns.unwrap_or_default();
+        let output = export_asn_mmdb_to_ipset_string(payload, &asns).map_err(to_napi_error)?;
+        return Ok(any_db_string_result(output));
+    }
+    any_buffer_result_to_string(convert_asn_payload_any_to_buffer(payload, options)?)
 }
 
 fn collect_ip_rule_set_from_file(
@@ -610,6 +690,44 @@ fn any_db_result(output: rule_converter::DbBytesOutput) -> AnyBufferResult {
         )]),
         skipped: Vec::new(),
     }
+}
+
+fn any_db_string_result(output: rule_converter::DbStringOutput) -> AnyStringResult {
+    let name = output.name;
+    let format = output.format.as_str().to_string();
+    let behavior = output.behavior.as_str().to_string();
+    let count = output.count as u32;
+    AnyStringResult {
+        kind: "rules".to_string(),
+        outputs: HashMap::from([(name.clone(), output.text)]),
+        info: HashMap::from([(
+            name,
+            AnyOutputInfo {
+                behavior: Some(behavior),
+                format,
+                count,
+            },
+        )]),
+        skipped: Vec::new(),
+    }
+}
+
+fn can_use_db_ipset_string_fast_path(options: &AnyConvertOptions) -> Result<bool> {
+    if options.split.unwrap_or(true) {
+        return Ok(false);
+    }
+    let AnyTarget::Rule(output_target) = parse_any_output_target(options.output_target.as_deref())?
+    else {
+        return Ok(false);
+    };
+    let output_target = output_target.unwrap_or(RuleTarget::General);
+    let output_format =
+        parse_rule_output_format(options.output_format.as_deref())?.unwrap_or(OutputFormat::IpSet);
+    let output_behavior = parse_output_behavior(options.output_behavior.as_deref())?
+        .unwrap_or_else(|| default_output_behavior(output_target, output_format));
+    Ok(output_target == RuleTarget::General
+        && output_format == OutputFormat::IpSet
+        && output_behavior == BehaviorMode::Ipcidr)
 }
 
 fn parse_any_input_target(value: Option<&str>) -> Result<AnyTarget> {

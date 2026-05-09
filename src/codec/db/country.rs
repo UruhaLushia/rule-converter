@@ -82,20 +82,8 @@ pub fn export_geoip_mmdb_ipset_to_path(
         64 * 1024,
         File::create(output).with_context(|| format!("failed to create {}", output.display()))?,
     );
-    let mut count = 0usize;
+    let count = write_geoip_mmdb_reader_ipset(reader, &filter, &mut writer)?;
 
-    for item in reader.networks(WithinOptions::default())? {
-        let item = item.context("failed to read GeoIP MMDB network")?;
-        if !geoip_item_matches_filter(&item, &filter)? {
-            continue;
-        }
-        writeln!(writer, "{}", item.network()?)?;
-        count += 1;
-    }
-
-    if count == 0 {
-        bail!("GeoIP input does not contain any country records");
-    }
     Ok(GeoipOutputFile {
         country: if countries.len() == 1 {
             normalize_country_code(&countries[0])
@@ -105,6 +93,96 @@ pub fn export_geoip_mmdb_ipset_to_path(
         count,
         path: output.to_path_buf(),
     })
+}
+
+pub fn export_geoip_mmdb_ipset_to_bytes(
+    input: &[u8],
+    countries: &[String],
+) -> Result<(usize, Vec<u8>)> {
+    let reader = Reader::from_source(input).context("failed to read GeoIP MMDB payload")?;
+    let filter = normalize_country_filter(countries);
+    let mut output = Vec::with_capacity(64 * 1024);
+    let count = write_geoip_mmdb_reader_ipset(reader, &filter, &mut output)?;
+    Ok((count, output))
+}
+
+pub fn export_geoip_mmdb_file_ipset_to_bytes(
+    input: impl AsRef<Path>,
+    countries: &[String],
+) -> Result<(usize, Vec<u8>)> {
+    let input = input.as_ref();
+    let reader = Reader::open_readfile(input)
+        .with_context(|| format!("failed to read GeoIP MMDB {}", input.display()))?;
+    let filter = normalize_country_filter(countries);
+    let mut output = Vec::with_capacity(64 * 1024);
+    let count = write_geoip_mmdb_reader_ipset(reader, &filter, &mut output)?;
+    Ok((count, output))
+}
+
+pub fn export_geoip_mmdb_ipset_to_string(
+    input: &[u8],
+    countries: &[String],
+) -> Result<(usize, String)> {
+    let reader = Reader::from_source(input).context("failed to read GeoIP MMDB payload")?;
+    let filter = normalize_country_filter(countries);
+    write_geoip_mmdb_reader_ipset_string(reader, &filter)
+}
+
+pub fn export_geoip_mmdb_file_ipset_to_string(
+    input: impl AsRef<Path>,
+    countries: &[String],
+) -> Result<(usize, String)> {
+    let input = input.as_ref();
+    let reader = Reader::open_readfile(input)
+        .with_context(|| format!("failed to read GeoIP MMDB {}", input.display()))?;
+    let filter = normalize_country_filter(countries);
+    write_geoip_mmdb_reader_ipset_string(reader, &filter)
+}
+
+fn write_geoip_mmdb_reader_ipset<S: AsRef<[u8]>, W: Write>(
+    reader: Reader<S>,
+    filter: &Option<BTreeSet<String>>,
+    writer: &mut W,
+) -> Result<usize> {
+    let mut count = 0usize;
+
+    for item in reader.networks(WithinOptions::default())? {
+        let item = item.context("failed to read GeoIP MMDB network")?;
+        if !geoip_item_matches_filter(&item, filter)? {
+            continue;
+        }
+        writeln!(writer, "{}", item.network()?)?;
+        count += 1;
+    }
+
+    if count == 0 {
+        bail!("GeoIP input does not contain any country records");
+    }
+    Ok(count)
+}
+
+fn write_geoip_mmdb_reader_ipset_string<S: AsRef<[u8]>>(
+    reader: Reader<S>,
+    filter: &Option<BTreeSet<String>>,
+) -> Result<(usize, String)> {
+    use std::fmt::Write as _;
+
+    let mut output = String::with_capacity(64 * 1024);
+    let mut count = 0usize;
+
+    for item in reader.networks(WithinOptions::default())? {
+        let item = item.context("failed to read GeoIP MMDB network")?;
+        if !geoip_item_matches_filter(&item, filter)? {
+            continue;
+        }
+        writeln!(&mut output, "{}", item.network()?).expect("writing to String cannot fail");
+        count += 1;
+    }
+
+    if count == 0 {
+        bail!("GeoIP input does not contain any country records");
+    }
+    Ok((count, output))
 }
 
 pub fn export_geoip_mmdb_mrs_to_path(
