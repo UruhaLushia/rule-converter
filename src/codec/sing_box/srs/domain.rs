@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
@@ -98,7 +98,7 @@ pub(super) fn write_domain_matcher_keys<W: Write>(
 ) -> Result<()> {
     keys.sort_and_dedup();
 
-    let set = SuccinctSet::new(keys);
+    let set = SuccinctSet::new(keys)?;
     writer.write_all(&[0])?;
     write_u64_vec(writer, &set.leaves)?;
     write_u64_vec(writer, &set.label_bitmap)?;
@@ -123,7 +123,7 @@ impl DomainMatcherKeys {
     pub(super) fn with_byte_capacity(capacity: usize, byte_capacity: usize) -> Self {
         Self {
             keys: Vec::with_capacity(capacity),
-            bytes: Vec::with_capacity(byte_capacity),
+            bytes: Vec::with_capacity(byte_capacity.saturating_add(capacity)),
         }
     }
 
@@ -133,25 +133,42 @@ impl DomainMatcherKeys {
         extra_bytes: usize,
     ) -> Result<Self> {
         let (mut bytes, items) = domains.into_parts();
-        bytes.reserve(extra_bytes);
-        let mut keys = Vec::with_capacity(items.len() + extra_keys);
-        for (offset, len) in items {
+        bytes.reserve(items.len() + extra_bytes);
+        let old_len = bytes.len();
+        if bytes[..old_len].contains(&0) {
+            return Err(anyhow!("invalid sing-box domain matcher key"));
+        }
+        bytes.resize(old_len + items.len(), 0);
+        let mut keys = vec![KeyRef { offset: 0, len: 0 }; items.len()];
+        let mut shifted_end = bytes.len();
+        for (index, (offset, len)) in items.into_iter().enumerate().rev() {
             let start = offset as usize;
             let end = start + len as usize;
-            if end > bytes.len() {
+            if end > old_len {
                 return Err(anyhow!("invalid sing-box domain rule list"));
             }
-            bytes[start..end].reverse();
-            keys.push(KeyRef { offset, len });
+            let new_start = shifted_end - len as usize - 1;
+            bytes.copy_within(start..end, new_start);
+            bytes[new_start..new_start + len as usize].reverse();
+            bytes[new_start + len as usize] = 0;
+            keys[index] = KeyRef {
+                offset: u32::try_from(new_start)
+                    .map_err(|_| anyhow!("sing-box domain matcher is too large"))?,
+                len,
+            };
+            shifted_end = new_start;
         }
+        keys.reserve(extra_keys);
         Ok(Self { keys, bytes })
     }
 
     pub(super) fn push_exact(&mut self, value: &str) -> Result<()> {
+        validate_domain_matcher_key(value)?;
         self.push_reversed(value.as_bytes())
     }
 
     pub(super) fn push_suffix(&mut self, value: &str) -> Result<()> {
+        validate_domain_matcher_key(value)?;
         let label = if value.starts_with('.') {
             PREFIX_LABEL as u8
         } else {
@@ -180,6 +197,7 @@ impl DomainMatcherKeys {
                 .map_err(|_| anyhow!("sing-box domain matcher is too large"))?,
             len: u32::try_from(len).map_err(|_| anyhow!("sing-box domain key is too large"))?,
         });
+        self.bytes.push(0);
         Ok(())
     }
 
@@ -202,32 +220,24 @@ impl DomainMatcherKeys {
         self.keys
             .dedup_by(|left, right| key_bytes(bytes, *left) == key_bytes(bytes, *right));
     }
-
-    fn key_len(&self, key: KeyRef) -> usize {
-        key.len as usize
-    }
-
-    fn key_byte(&self, key: KeyRef, index: usize) -> u8 {
-        self.bytes[key.offset as usize + index]
-    }
 }
 
 pub(super) fn domain_matcher_byte_len<S: AsRef<str>>(domains: &[S], domain_suffix: &[S]) -> usize {
     domains
         .iter()
-        .map(|value| value.as_ref().len())
+        .map(|value| value.as_ref().len() + 1)
         .sum::<usize>()
         + domain_suffix
             .iter()
-            .map(|value| value.as_ref().len() + 1)
+            .map(|value| value.as_ref().len() + 2)
             .sum::<usize>()
 }
 
 pub(super) fn domain_matcher_list_byte_len(domains: &RuleList, domain_suffix: &RuleList) -> usize {
-    domains.iter().map(str::len).sum::<usize>()
+    domains.iter().map(|value| value.len() + 1).sum::<usize>()
         + domain_suffix
             .iter()
-            .map(|value| value.len() + 1)
+            .map(|value| value.len() + 2)
             .sum::<usize>()
 }
 
@@ -240,6 +250,28 @@ struct KeyRef {
 fn key_bytes(bytes: &[u8], key: KeyRef) -> &[u8] {
     let start = key.offset as usize;
     &bytes[start..start + key.len as usize]
+}
+
+fn key_byte(bytes: &[u8], offset: u32, index: usize) -> u8 {
+    bytes[offset as usize + index]
+}
+
+fn validate_domain_matcher_key(value: &str) -> Result<()> {
+    if value.as_bytes().contains(&0) {
+        bail!("invalid sing-box domain matcher key");
+    }
+    Ok(())
+}
+
+fn pack_range(start: usize, end: usize) -> Result<u64> {
+    let start =
+        u32::try_from(start).map_err(|_| anyhow!("sing-box domain matcher is too large"))?;
+    let end = u32::try_from(end).map_err(|_| anyhow!("sing-box domain matcher is too large"))?;
+    Ok(((start as u64) << 32) | end as u64)
+}
+
+fn unpack_range(range: u64) -> (usize, usize) {
+    ((range >> 32) as usize, (range as u32) as usize)
 }
 
 pub(super) fn read_domain_matcher<R: Read>(reader: &mut R) -> Result<DomainMatcherDump> {
@@ -278,44 +310,39 @@ struct SuccinctSet {
 }
 
 impl SuccinctSet {
-    fn new(keys: &DomainMatcherKeys) -> Self {
-        let mut leaves = Vec::with_capacity((keys.keys.len() / 64).saturating_add(1));
-        let mut label_bitmap = Vec::with_capacity((keys.keys.len() / 32).saturating_add(1));
-        let mut labels = Vec::with_capacity(keys.keys.len());
-        let mut current = vec![QueueItem {
-            start: 0,
-            end: keys.keys.len() as u32,
-            col: 0,
-        }];
+    fn new(keys: &mut DomainMatcherKeys) -> Result<Self> {
+        let key_refs = std::mem::take(&mut keys.keys);
+        let offsets: Vec<u32> = key_refs.iter().map(|key| key.offset).collect();
+        drop(key_refs);
+        let bytes = &keys.bytes;
+        let mut leaves = Vec::with_capacity((offsets.len() / 64).saturating_add(1));
+        let mut label_bitmap = Vec::with_capacity((offsets.len() / 32).saturating_add(1));
+        let mut labels = Vec::with_capacity(offsets.len());
+        let mut current = vec![pack_range(0, offsets.len())?];
         let mut next = Vec::new();
         let mut node_id = 0usize;
         let mut label_index = 0usize;
+        let mut depth = 0usize;
         while !current.is_empty() {
             next.clear();
-            for mut item in current.drain(..) {
-                let start = item.start as usize;
-                let end = item.end as usize;
-                let col = item.col as usize;
-                if col == keys.key_len(keys.keys[start]) {
-                    item.start += 1;
+            for range in current.drain(..) {
+                let (mut start, end) = unpack_range(range);
+                if key_byte(bytes, offsets[start], depth) == 0 {
+                    start += 1;
                     set_bit(&mut leaves, node_id, 1);
                 }
 
-                let mut cursor = item.start as usize;
+                let mut cursor = start;
                 while cursor < end {
                     let from = cursor;
                     while cursor < end
-                        && keys.key_byte(keys.keys[cursor], col)
-                            == keys.key_byte(keys.keys[from], col)
+                        && key_byte(bytes, offsets[cursor], depth)
+                            == key_byte(bytes, offsets[from], depth)
                     {
                         cursor += 1;
                     }
-                    next.push(QueueItem {
-                        start: from as u32,
-                        end: cursor as u32,
-                        col: item.col + 1,
-                    });
-                    labels.push(keys.key_byte(keys.keys[from], col));
+                    next.push(pack_range(from, cursor)?);
+                    labels.push(key_byte(bytes, offsets[from], depth));
                     set_bit(&mut label_bitmap, label_index, 0);
                     label_index += 1;
                 }
@@ -324,13 +351,14 @@ impl SuccinctSet {
                 node_id += 1;
             }
             std::mem::swap(&mut current, &mut next);
+            depth += 1;
         }
 
-        Self {
+        Ok(Self {
             leaves,
             label_bitmap,
             labels,
-        }
+        })
     }
 
     fn keys(&self) -> Result<Vec<String>> {
@@ -377,13 +405,6 @@ impl SuccinctSet {
             idx += 1;
         }
     }
-}
-
-#[derive(Clone, Copy)]
-struct QueueItem {
-    start: u32,
-    end: u32,
-    col: u32,
 }
 
 fn reverse_runes(value: &str) -> String {

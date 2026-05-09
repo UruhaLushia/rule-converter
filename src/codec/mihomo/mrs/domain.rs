@@ -17,7 +17,7 @@ pub struct DomainSetBuilder {
 impl DomainSetBuilder {
     pub fn reserve(&mut self, keys: usize, bytes: usize) {
         self.keys.reserve(keys);
-        self.bytes.reserve(bytes);
+        self.bytes.reserve(bytes.saturating_add(keys));
     }
 
     pub fn insert(&mut self, rule: &str) -> Result<()> {
@@ -54,6 +54,7 @@ impl DomainSetBuilder {
                 .extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
         }
         let len = self.bytes.len() - offset;
+        self.bytes.push(0);
         let offset =
             u32::try_from(offset).map_err(|_| anyhow::anyhow!("domain set is too large"))?;
         let len = u32::try_from(len).map_err(|_| anyhow::anyhow!("domain key is too large"))?;
@@ -73,44 +74,41 @@ impl DomainSetBuilder {
         sort_domain_keys(&mut self.keys, &self.bytes);
         self.keys
             .dedup_by(|a, b| key_bytes(&self.bytes, *a) == key_bytes(&self.bytes, *b));
-        let keys = self.keys;
+        let count = self.count;
+        let has_suffix = self.has_suffix;
+        let key_refs = self.keys;
         let bytes = self.bytes;
+        let keys: Vec<u32> = key_refs.iter().map(|key| key.offset).collect();
+        drop(key_refs);
         let mut leaves = Vec::with_capacity((keys.len() / 64).saturating_add(1));
         let mut label_bitmap = Vec::with_capacity((keys.len() / 32).saturating_add(1));
         let mut labels = Vec::with_capacity(keys.len());
-        let mut current = vec![QueueItem {
-            start: 0,
-            end: keys.len() as u32,
-            col: 0,
-        }];
+        let mut current = vec![pack_range(0, keys.len())?];
         let mut next = Vec::new();
 
         let mut label_index = 0usize;
         let mut node_id = 0usize;
+        let mut depth = 0usize;
         while !current.is_empty() {
             next.clear();
-            for mut item in current.drain(..) {
-                let start = item.start as usize;
-                let col = item.col as usize;
-                if col == key_len(keys[start]) {
-                    item.start += 1;
+            for range in current.drain(..) {
+                let (mut start, end) = unpack_range(range);
+                if key_byte(&bytes, keys[start], depth) == 0 {
+                    start += 1;
                     set_bit(&mut leaves, node_id, 1);
                 }
 
-                let mut cursor = item.start as usize;
-                while cursor < item.end as usize {
+                let mut cursor = start;
+                while cursor < end {
                     let from = cursor;
-                    while cursor < item.end as usize
-                        && key_byte(&bytes, keys[cursor], col) == key_byte(&bytes, keys[from], col)
+                    while cursor < end
+                        && key_byte(&bytes, keys[cursor], depth)
+                            == key_byte(&bytes, keys[from], depth)
                     {
                         cursor += 1;
                     }
-                    next.push(QueueItem {
-                        start: from as u32,
-                        end: cursor as u32,
-                        col: item.col + 1,
-                    });
-                    labels.push(key_byte(&bytes, keys[from], col));
+                    next.push(pack_range(from, cursor)?);
+                    labels.push(key_byte(&bytes, keys[from], depth));
                     set_bit(&mut label_bitmap, label_index, 0);
                     label_index += 1;
                 }
@@ -119,6 +117,7 @@ impl DomainSetBuilder {
                 node_id += 1;
             }
             std::mem::swap(&mut current, &mut next);
+            depth += 1;
         }
 
         drop(bytes);
@@ -127,8 +126,8 @@ impl DomainSetBuilder {
         drop(next);
 
         Ok(DomainSet {
-            count: self.count,
-            has_suffix: self.has_suffix,
+            count,
+            has_suffix,
             leaves,
             label_bitmap,
             labels,
@@ -148,12 +147,18 @@ fn key_bytes(bytes: &[u8], key: KeyRef) -> &[u8] {
     &bytes[start..end]
 }
 
-fn key_len(key: KeyRef) -> usize {
-    key.len as usize
+fn key_byte(bytes: &[u8], offset: u32, index: usize) -> u8 {
+    bytes[offset as usize + index]
 }
 
-fn key_byte(bytes: &[u8], key: KeyRef, index: usize) -> u8 {
-    bytes[key.offset as usize + index]
+fn pack_range(start: usize, end: usize) -> Result<u64> {
+    let start = u32::try_from(start).map_err(|_| anyhow::anyhow!("domain set is too large"))?;
+    let end = u32::try_from(end).map_err(|_| anyhow::anyhow!("domain set is too large"))?;
+    Ok(((start as u64) << 32) | end as u64)
+}
+
+fn unpack_range(range: u64) -> (usize, usize) {
+    ((range >> 32) as usize, (range as u32) as usize)
 }
 
 fn sort_domain_keys(keys: &mut [KeyRef], bytes: &[u8]) {
@@ -178,13 +183,6 @@ impl FromIterator<String> for DomainSetBuilder {
         }
         builder
     }
-}
-
-#[derive(Clone, Copy)]
-struct QueueItem {
-    start: u32,
-    end: u32,
-    col: u32,
 }
 
 pub struct DomainSet {
@@ -442,6 +440,9 @@ pub fn normalize_domain_rule(mut rule: &str, mut f: impl FnMut(&str) -> Result<(
 fn validate_domain_tail(domain: &str, empty_error: &str) -> Result<()> {
     if domain.is_empty() {
         bail!(empty_error.to_string());
+    }
+    if domain.as_bytes().contains(&0) {
+        bail!("invalid domain");
     }
     if domain.split('.').any(str::is_empty) {
         bail!("invalid domain");
