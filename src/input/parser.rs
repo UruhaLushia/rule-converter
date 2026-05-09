@@ -1,4 +1,4 @@
-use std::io::BufRead;
+use std::io::{self, BufRead};
 
 use anyhow::{Context, Result};
 
@@ -53,10 +53,18 @@ fn for_each_mrs_rule<R: BufRead>(
 ) -> Result<usize> {
     let mut raw = Vec::new();
     reader.read_to_end(&mut raw)?;
-    let rules = mihomo::mrs::read_mrs_rules(&raw)?;
-    let count = rules.len();
-    for rule in &rules {
-        f(rule)?;
+    let rule_set = mihomo::mrs::read_mrs(&raw)?;
+    let count = rule_set.count();
+    let mut err = None;
+    rule_set.for_each_rule(|rule| {
+        if let Err(item_err) = f(rule) {
+            err = Some(item_err);
+            return Err(io::Error::other("failed to handle MRS rule"));
+        }
+        Ok(())
+    })?;
+    if let Some(err) = err {
+        return Err(err);
     }
     Ok(count)
 }

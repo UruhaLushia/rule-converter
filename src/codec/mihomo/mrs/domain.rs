@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::io::{self, Read, Write};
 
 use anyhow::{Result, bail};
@@ -250,20 +249,29 @@ impl DomainSet {
             return self.for_each_raw_rule(f);
         }
 
-        let suffixes = self.collect_suffixes()?;
-        let exacts = self.collect_exacts(&suffixes)?;
+        let index = LoudsIndex::new(&self.label_bitmap);
+        let mut wildcard = Vec::new();
         self.visit_reversed_keys(&mut Vec::new(), &mut |reversed| {
-            let Some(key) = reversed_key_to_rule(reversed) else {
-                return Ok(());
-            };
-            if let Some(suffix) = key.strip_prefix("+.") {
-                let rule = if exacts.contains(suffix) {
+            if let Some(suffix_reversed) = reversed.strip_suffix(b".+") {
+                let Some(suffix) = reversed_key_to_rule(suffix_reversed) else {
+                    return Ok(());
+                };
+                let rule = if self.contains_reversed_key(suffix_reversed, &index) {
                     format!("+.{suffix}")
                 } else {
                     format!(".{suffix}")
                 };
                 f(&rule)?;
-            } else if !suffixes.contains(&key) {
+            } else {
+                wildcard.clear();
+                wildcard.extend_from_slice(reversed);
+                wildcard.extend_from_slice(b".+");
+                if self.contains_reversed_key(&wildcard, &index) {
+                    return Ok(());
+                }
+                let Some(key) = reversed_key_to_rule(reversed) else {
+                    return Ok(());
+                };
                 f(&key)?;
             }
             Ok(())
@@ -275,14 +283,22 @@ impl DomainSet {
             return self.for_each_raw_rule(f);
         }
 
-        let suffixes = self.collect_suffixes()?;
+        let index = LoudsIndex::new(&self.label_bitmap);
+        let mut wildcard = Vec::new();
         self.visit_reversed_keys(&mut Vec::new(), &mut |reversed| {
+            if reversed.ends_with(b".+") {
+                return Ok(());
+            }
+            wildcard.clear();
+            wildcard.extend_from_slice(reversed);
+            wildcard.extend_from_slice(b".+");
+            if self.contains_reversed_key(&wildcard, &index) {
+                return Ok(());
+            }
             let Some(key) = reversed_key_to_rule(reversed) else {
                 return Ok(());
             };
-            if !key.starts_with("+.") && !suffixes.contains(&key) {
-                f(&key)?;
-            }
+            f(&key)?;
             Ok(())
         })
     }
@@ -297,31 +313,6 @@ impl DomainSet {
             }
             Ok(())
         })
-    }
-
-    fn collect_suffixes(&self) -> io::Result<HashSet<String>> {
-        let mut suffixes = HashSet::new();
-        self.visit_reversed_keys(&mut Vec::new(), &mut |reversed| {
-            if let Some(suffix) = reversed_suffix_to_rule(reversed) {
-                suffixes.insert(suffix);
-            }
-            Ok(())
-        })?;
-        Ok(suffixes)
-    }
-
-    fn collect_exacts(&self, suffixes: &HashSet<String>) -> io::Result<HashSet<String>> {
-        let mut exacts = HashSet::new();
-        self.visit_reversed_keys(&mut Vec::new(), &mut |reversed| {
-            let Some(key) = reversed_key_to_rule(reversed) else {
-                return Ok(());
-            };
-            if !key.starts_with("+.") && suffixes.contains(&key) {
-                exacts.insert(key);
-            }
-            Ok(())
-        })?;
-        Ok(exacts)
     }
 
     fn for_each_raw_rule(&self, mut f: impl FnMut(&str) -> io::Result<()>) -> io::Result<()> {
@@ -340,6 +331,31 @@ impl DomainSet {
     ) -> io::Result<()> {
         let index = LoudsIndex::new(&self.label_bitmap);
         self.visit_reversed_keys_at(0, 0, current, &index, f)
+    }
+
+    fn contains_reversed_key(&self, key: &[u8], index: &LoudsIndex<'_>) -> bool {
+        let mut node_id = 0usize;
+        let mut bm_idx = 0usize;
+
+        for byte in key {
+            let mut idx = bm_idx;
+            let (next_node_id, next_bm_idx) = loop {
+                if get_bit(&self.label_bitmap, idx) != 0 {
+                    return false;
+                }
+                let label = self.labels[idx - node_id];
+                if &label == byte {
+                    let next_node_id = index.count_zeros(idx + 1);
+                    let next_bm_idx = index.select_ith_one(next_node_id - 1) + 1;
+                    break (next_node_id, next_bm_idx);
+                }
+                idx += 1;
+            };
+            node_id = next_node_id;
+            bm_idx = next_bm_idx;
+        }
+
+        get_bit(&self.leaves, node_id) != 0
     }
 
     fn visit_reversed_keys_at(

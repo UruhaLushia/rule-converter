@@ -1,8 +1,10 @@
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 
 use crate::RuleTarget;
+use crate::codec::mihomo::mrs::{Behavior, read_mrs};
 use crate::codec::sing_box::RuleStore;
 use crate::input::{
     DetectedInput, InputFormat, InputSource, detect_path, detect_payload, expand_file_paths,
@@ -193,6 +195,11 @@ where
     let detected = detect_file_inputs(&paths, options)?;
     let input_behavior = merge_input_behavior(detected.iter().copied());
     let output_behavior = resolve_output_behavior(options, input_behavior)?;
+    if let Some(result) =
+        convert_single_mrs_file_fast_path(&paths, &detected, options, output_behavior)?
+    {
+        return Ok(result);
+    }
     let options = options_with_output_behavior(options, output_behavior);
     let input_target = merge_input_target(detected.iter().copied());
     let converter = converter_for_options(input_behavior, input_target, options);
@@ -222,10 +229,79 @@ where
     Ok(result)
 }
 
-fn detect_file_inputs(
-    paths: &[std::path::PathBuf],
+fn convert_single_mrs_file_fast_path(
+    paths: &[PathBuf],
+    detected: &[DetectedInput],
     options: ConvertOptions,
-) -> Result<Vec<DetectedInput>> {
+    output_behavior: BehaviorMode,
+) -> Result<Option<ConvertResult>> {
+    if paths.len() != 1 {
+        return Ok(None);
+    }
+    let Some(detected) = detected.first().copied() else {
+        return Ok(None);
+    };
+    if detected.target != RuleTarget::Mihomo || detected.format != InputFormat::Mrs {
+        return Ok(None);
+    }
+    if !can_reuse_mrs_rule_set(options, output_behavior, detected) {
+        return Ok(None);
+    }
+
+    let raw = fs::read(&paths[0])
+        .with_context(|| format!("failed to read input {}", paths[0].display()))?;
+    let rule_set = read_mrs(&raw)?;
+    if !rule_set_matches_behavior(&rule_set, output_behavior) {
+        return Ok(None);
+    }
+
+    Ok(Some(ConvertResult {
+        outputs: vec![rule_set],
+        mixed_rules: RuleTextStore::default(),
+        sing_box_rules: None,
+        output_behavior,
+        no_resolve: false,
+        skipped: Vec::new(),
+    }))
+}
+
+fn can_reuse_mrs_rule_set(
+    options: ConvertOptions,
+    output_behavior: BehaviorMode,
+    detected: DetectedInput,
+) -> bool {
+    if detected.behavior == BehaviorMode::Auto {
+        return false;
+    }
+    if options.output_target == RuleTarget::Mihomo
+        && matches!(
+            options.output_format,
+            OutputFormat::Text | OutputFormat::Yaml
+        )
+        && output_behavior == BehaviorMode::Classical
+    {
+        return false;
+    }
+    matches!(
+        output_behavior,
+        BehaviorMode::Domain | BehaviorMode::Ipcidr | BehaviorMode::Classical
+    )
+}
+
+fn rule_set_matches_behavior(rule_set: &RuleSetOutput, output_behavior: BehaviorMode) -> bool {
+    matches!(
+        (rule_set.behavior(), output_behavior),
+        (
+            Behavior::Domain,
+            BehaviorMode::Domain | BehaviorMode::Classical
+        ) | (
+            Behavior::Ipcidr,
+            BehaviorMode::Ipcidr | BehaviorMode::Classical
+        )
+    )
+}
+
+fn detect_file_inputs(paths: &[PathBuf], options: ConvertOptions) -> Result<Vec<DetectedInput>> {
     if let (Some(target), Some(format)) = (options.input_target, options.input_format) {
         let behavior = input_behavior_to_output_mode(options.input_behavior);
         return Ok(vec![
