@@ -103,24 +103,7 @@ pub fn convert_payload_to_mrs(
     let options = parse_options(options)?;
     ensure_mrs_behavior(options.output_behavior)?;
     let result = convert_payload(payload.as_ref(), options).map_err(to_napi_error)?;
-
-    let outputs = result
-        .outputs
-        .iter()
-        .map(|output| {
-            let bytes = output.to_mrs_bytes().map_err(to_napi_error)?;
-            Ok(ConvertOutput {
-                behavior: output.behavior().as_str().to_string(),
-                count: output.count() as u32,
-                bytes: Uint8Array::from(bytes),
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    Ok(ConvertResult {
-        outputs,
-        skipped: map_skipped(result.skipped),
-    })
+    convert_result_to_mrs(result)
 }
 
 #[napi]
@@ -128,7 +111,10 @@ pub fn convert_payload_string_to_mrs(
     payload: String,
     options: Option<ConvertOptions>,
 ) -> Result<ConvertResult> {
-    convert_payload_to_mrs(Uint8Array::from(payload.into_bytes()), options)
+    let options = parse_options(options)?;
+    ensure_mrs_behavior(options.output_behavior)?;
+    let result = convert_payload(payload.as_bytes(), options).map_err(to_napi_error)?;
+    convert_result_to_mrs(result)
 }
 
 #[napi]
@@ -148,7 +134,11 @@ pub fn convert_payload_string_to_buffer(
     payload: String,
     options: Option<ConvertOptions>,
 ) -> Result<ConvertBufferResult> {
-    convert_payload_to_buffer(Uint8Array::from(payload.into_bytes()), options)
+    let options = parse_options(options)?;
+    let output_target = options.output_target;
+    let output_format = options.output_format;
+    let result = convert_payload(payload.as_bytes(), options).map_err(to_napi_error)?;
+    convert_result_to_buffer(result, output_target, output_format)
 }
 
 #[napi]
@@ -169,7 +159,12 @@ pub fn convert_payload_string_to_string(
     payload: String,
     options: Option<ConvertOptions>,
 ) -> Result<ConvertStringResult> {
-    convert_payload_to_string(Uint8Array::from(payload.into_bytes()), options)
+    let options = parse_options(options)?;
+    ensure_text_output(options.output_format)?;
+    let output_target = options.output_target;
+    let output_format = options.output_format;
+    let result = convert_payload(payload.as_bytes(), options).map_err(to_napi_error)?;
+    convert_result_to_string(result, output_target, output_format)
 }
 
 #[napi]
@@ -347,6 +342,26 @@ fn convert_result_to_buffer(
     Ok(ConvertBufferResult {
         outputs,
         skipped: map_skipped(skipped),
+    })
+}
+
+fn convert_result_to_mrs(result: rule_converter::ConvertResult) -> Result<ConvertResult> {
+    let outputs = result
+        .outputs
+        .iter()
+        .map(|output| {
+            let bytes = output.to_mrs_bytes().map_err(to_napi_error)?;
+            Ok(ConvertOutput {
+                behavior: output.behavior().as_str().to_string(),
+                count: output.count() as u32,
+                bytes: Uint8Array::from(bytes),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(ConvertResult {
+        outputs,
+        skipped: map_skipped(result.skipped),
     })
 }
 
