@@ -8,8 +8,8 @@ type OutputBehavior = String;
 use napi_derive::napi;
 use rule_converter::{
     BehaviorMode, InputBehaviorMode, InputFormat, OutputFormat, RuleTarget, convert_files,
-    convert_payload, default_output_behavior, write_outputs_as_owned,
-    write_outputs_as_to_memory_owned,
+    convert_files_to_path_streaming, convert_payload, default_output_behavior,
+    write_outputs_as_owned, write_outputs_as_to_memory_owned,
 };
 
 type FileInput = Either<String, Vec<String>>;
@@ -231,14 +231,20 @@ pub fn convert_file_to_path(
 ) -> Result<WriteResult> {
     let options = parse_options(options)?;
     let input = normalize_file_input(input)?;
-    let result = convert_files(&input, options).map_err(to_napi_error)?;
-    let (files, skipped) = write_outputs_as_owned(
-        result,
-        &output,
-        options.output_target,
-        options.output_format,
-    )
-    .map_err(to_napi_error)?;
+    let (files, skipped) = if let Some(result) =
+        convert_files_to_path_streaming(&input, &output, options).map_err(to_napi_error)?
+    {
+        result
+    } else {
+        let result = convert_files(&input, options).map_err(to_napi_error)?;
+        write_outputs_as_owned(
+            result,
+            &output,
+            options.output_target,
+            options.output_format,
+        )
+        .map_err(to_napi_error)?
+    };
     let outputs = files
         .into_iter()
         .map(|file| WrittenOutput {
