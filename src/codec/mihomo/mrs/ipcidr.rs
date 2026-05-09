@@ -33,20 +33,25 @@ impl IpCidrSetBuilder {
         }
         self.ranges.sort_by_key(|range| (range.family, range.from));
 
-        let mut merged: Vec<IpRange> = Vec::with_capacity(self.ranges.len());
-        for range in self.ranges {
-            if let Some(last) = merged.last_mut() {
+        let mut write = 0usize;
+        for read in 0..self.ranges.len() {
+            let range = self.ranges[read];
+            if write > 0 {
+                let last = &mut self.ranges[write - 1];
                 if last.family == range.family && range.from <= last.to.saturating_add(1) {
                     last.to = last.to.max(range.to);
                     continue;
                 }
             }
-            merged.push(range);
+            self.ranges[write] = range;
+            write += 1;
         }
+        self.ranges.truncate(write);
+        self.ranges.shrink_to_fit();
 
         Ok(IpCidrSet {
             count: self.count,
-            ranges: merged,
+            ranges: self.ranges,
         })
     }
 }
