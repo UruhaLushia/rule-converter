@@ -92,6 +92,11 @@ fn matches_geosite_dat_payload_and_auto_detects_it() {
     )
     .unwrap();
     assert!(explicit.matched);
+    assert!(explicit.rules.iter().any(|rule| {
+        rule.source.as_deref() == Some("geosite")
+            && rule.entry.as_deref() == Some("test")
+            && rule.set.as_deref() == Some("test")
+    }));
 
     let auto = match_payload(&db.bytes, "static-ads.example.org", MatchOptions::default()).unwrap();
     assert!(auto.matched);

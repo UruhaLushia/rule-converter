@@ -34,6 +34,9 @@ pub(crate) struct MatchOptions {
 pub(crate) struct MatchRule {
     pub behavior: String,
     pub rule: String,
+    pub source: Option<String>,
+    pub entry: Option<String>,
+    pub set: Option<String>,
 }
 
 #[derive(Serialize)]

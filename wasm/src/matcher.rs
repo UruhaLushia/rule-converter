@@ -60,6 +60,9 @@ fn map_match_result(result: CoreMatchResult) -> MatchResult {
             .map(|rule| MatchRule {
                 behavior: rule.behavior.as_str().to_string(),
                 rule: rule.rule,
+                source: rule.source,
+                entry: rule.entry,
+                set: rule.set,
             })
             .collect(),
     }

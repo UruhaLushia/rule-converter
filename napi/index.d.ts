@@ -70,6 +70,9 @@ export interface MatchOptions {
 export interface MatchRule {
   behavior: string
   rule: string
+  source?: string
+  entry?: string
+  set?: string
 }
 
 export interface MatchResult {
