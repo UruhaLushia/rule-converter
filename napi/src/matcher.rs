@@ -1,8 +1,8 @@
 use napi::bindgen_prelude::{Result, Uint8Array};
 use napi_derive::napi;
 use rule_converter::{
-    InputBehaviorMode, InputFormat, MatchOptions as CoreMatchOptions,
-    MatchResult as CoreMatchResult, RuleTarget,
+    InputBehaviorMode, MatchInputFormat, MatchInputTarget, MatchOptions as CoreMatchOptions,
+    MatchResult as CoreMatchResult,
 };
 
 use crate::error::to_napi_error;
@@ -11,10 +11,10 @@ use crate::types::{AnyFormatOption, AnyTargetOption, BehaviorOption};
 #[allow(dead_code)]
 #[napi(object)]
 pub struct MatchOptions {
-    #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box'")]
+    #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'")]
     pub input_target: Option<AnyTargetOption>,
     #[napi(
-        ts_type = "'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset'"
+        ts_type = "'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'mmdb' | 'sing-db' | 'metadb'"
     )]
     pub input_format: Option<AnyFormatOption>,
     #[napi(ts_type = "'auto' | 'domain' | 'ip' | 'classical'")]
@@ -80,13 +80,13 @@ fn core_match_options(options: Option<MatchOptions>) -> Result<CoreMatchOptions>
         input_target: options
             .input_target
             .as_deref()
-            .map(RuleTarget::parse_arg)
+            .map(MatchInputTarget::parse_arg)
             .transpose()
             .map_err(to_napi_error)?,
         input_format: options
             .input_format
             .as_deref()
-            .map(InputFormat::parse_arg)
+            .map(MatchInputFormat::parse_arg)
             .transpose()
             .map_err(to_napi_error)?,
         input_behavior: options

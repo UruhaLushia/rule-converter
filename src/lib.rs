@@ -9,9 +9,9 @@ mod target;
 
 pub use api::{
     ConvertOptions, ConvertResult, DbBytesOutput, DbMemoryOutput, DbStringOutput, FileInput,
-    MatchOptions, MatchQueryKind, MatchResult, MatchedRule, SkippedRule, build_asn_mmdb_to_memory,
-    build_geoip_dat_to_memory, build_geoip_db_to_memory, build_geoip_mmdb_to_memory,
-    build_geosite_dat_to_memory, convert_asn_mmdb_file_to_memory,
+    MatchInputFormat, MatchInputTarget, MatchOptions, MatchQueryKind, MatchResult, MatchedRule,
+    SkippedRule, build_asn_mmdb_to_memory, build_geoip_dat_to_memory, build_geoip_db_to_memory,
+    build_geoip_mmdb_to_memory, build_geosite_dat_to_memory, convert_asn_mmdb_file_to_memory,
     convert_asn_mmdb_file_to_memory_filtered, convert_asn_mmdb_to_memory,
     convert_asn_mmdb_to_memory_filtered, convert_file, convert_file_inputs,
     convert_file_inputs_to_path_streaming, convert_files, convert_files_to_path_streaming,

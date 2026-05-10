@@ -64,15 +64,26 @@ pub fn list_geosite_dat_codes(input: &[u8]) -> Result<Vec<String>> {
 
 pub fn collect_geosite_dat_rule_set(input: &[u8], codes: &[String]) -> Result<ConvertResult> {
     let sets = collect_geosite_dat_rule_sets(input, codes)?;
+    let mut builder = DomainSetBuilder::default();
     let mut outputs = Vec::new();
     let mut mixed_rules = RuleTextStore::default();
     for set in sets {
         if let Some(output) = set.output {
-            outputs.push(output);
+            if let RuleSetOutput::Domain(domain_set) = output {
+                domain_set.for_each_rule(|rule| {
+                    builder
+                        .insert(rule)
+                        .map_err(|err| io_error_from_anyhow(err))
+                })?;
+            }
         }
         for rule in set.mixed_rules.iter() {
             mixed_rules.push(rule);
         }
+    }
+
+    if !builder.is_empty() {
+        outputs.push(RuleSetOutput::Domain(builder.finish()?));
     }
 
     Ok(ConvertResult {
@@ -83,6 +94,10 @@ pub fn collect_geosite_dat_rule_set(input: &[u8], codes: &[String]) -> Result<Co
         no_resolve: false,
         skipped: Vec::new(),
     })
+}
+
+fn io_error_from_anyhow(err: anyhow::Error) -> std::io::Error {
+    std::io::Error::other(err.to_string())
 }
 
 pub fn collect_geosite_dat_rule_sets(

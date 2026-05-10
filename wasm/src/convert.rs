@@ -49,7 +49,7 @@ fn convert_any_payload_to_js(
     payload: &[u8],
     options: AnyConvertOptions,
 ) -> Result<JsValue, JsValue> {
-    match parse_any_target(options.input_target.as_deref(), true)? {
+    match parse_payload_input_target(payload, &options)? {
         AnyTarget::Rule(input_target) => {
             convert_rule_payload_any_to_js(payload, input_target, options)
         }
@@ -63,7 +63,7 @@ fn convert_any_payload_to_string_js(
     payload: &[u8],
     options: AnyConvertOptions,
 ) -> Result<JsValue, JsValue> {
-    match parse_any_target(options.input_target.as_deref(), true)? {
+    match parse_payload_input_target(payload, &options)? {
         AnyTarget::Rule(input_target) => any_js_to_string(convert_rule_payload_any_to_js(
             payload,
             input_target,
@@ -75,4 +75,21 @@ fn convert_any_payload_to_string_js(
         }
         AnyTarget::Asn => convert_asn_payload_any_to_string_js(payload, options),
     }
+}
+
+fn parse_payload_input_target(
+    payload: &[u8],
+    options: &AnyConvertOptions,
+) -> Result<AnyTarget, JsValue> {
+    if options.input_target.is_some() {
+        return parse_any_target(options.input_target.as_deref(), true);
+    }
+    if matches!(options.input_format.as_deref(), None | Some("dat")) {
+        match rule_converter::codec::dat::detect_dat_kind(payload) {
+            Some(rule_converter::codec::dat::DatKind::Geoip) => return Ok(AnyTarget::Geoip),
+            Some(rule_converter::codec::dat::DatKind::Geosite) => return Ok(AnyTarget::Geosite),
+            None => {}
+        }
+    }
+    parse_any_target(None, true)
 }

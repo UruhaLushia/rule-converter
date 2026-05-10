@@ -2,6 +2,31 @@ mod geoip;
 mod geosite;
 mod proto;
 
+use prost::Message;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DatKind {
+    Geoip,
+    Geosite,
+}
+
+pub fn detect_dat_kind(input: &[u8]) -> Option<DatKind> {
+    let entry = proto::first_raw_message_field(input, 1, "V2Ray dat").ok()??;
+    if proto::GeoSite::decode(entry)
+        .ok()
+        .is_some_and(|site| !site.country_code.is_empty() && !site.domain.is_empty())
+    {
+        return Some(DatKind::Geosite);
+    }
+    if proto::GeoIp::decode(entry)
+        .ok()
+        .is_some_and(|geoip| !geoip.country_code.is_empty() && !geoip.cidr.is_empty())
+    {
+        return Some(DatKind::Geoip);
+    }
+    None
+}
+
 pub use geoip::{
     GeoipDatRuleSet, build_geoip_dat_from_rule_sets, collect_geoip_dat_rule_set,
     collect_geoip_dat_rule_sets, export_geoip_dat_ipset_to_memory, filter_geoip_dat,

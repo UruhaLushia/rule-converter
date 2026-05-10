@@ -1,7 +1,10 @@
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rule_converter::{InputBehaviorMode, MatchOptions, match_file, match_payload};
+use rule_converter::{
+    InputBehaviorMode, MatchInputFormat, MatchInputTarget, MatchOptions,
+    build_geosite_dat_to_memory, match_file, match_payload,
+};
 
 #[test]
 fn matches_domain_suffix_and_ip_cidr() {
@@ -57,6 +60,41 @@ fn matches_keyword_and_regex_classical_rules() {
             .unwrap()
             .matched
     );
+}
+
+#[test]
+fn matches_geosite_dat_payload_and_auto_detects_it() {
+    let rules = b"DOMAIN-KEYWORD,ads\nDOMAIN-REGEX,[\n";
+    let db = build_geosite_dat_to_memory([(
+        "test".to_string(),
+        rule_converter::convert_payload(
+            rules,
+            rule_converter::ConvertOptions {
+                input_behavior: InputBehaviorMode::Classical,
+                output_target: rule_converter::RuleTarget::General,
+                output_format: rule_converter::OutputFormat::RuleSet,
+                output_behavior: rule_converter::BehaviorMode::Classical,
+                ..rule_converter::ConvertOptions::default()
+            },
+        )
+        .unwrap(),
+    )])
+    .unwrap();
+
+    let explicit = match_payload(
+        &db.bytes,
+        "static-ads.example.org",
+        MatchOptions {
+            input_target: Some(MatchInputTarget::Geosite),
+            input_format: Some(MatchInputFormat::Dat),
+            ..MatchOptions::default()
+        },
+    )
+    .unwrap();
+    assert!(explicit.matched);
+
+    let auto = match_payload(&db.bytes, "static-ads.example.org", MatchOptions::default()).unwrap();
+    assert!(auto.matched);
 }
 
 #[test]

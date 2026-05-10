@@ -1,6 +1,6 @@
 use rule_converter::{
-    InputBehaviorMode, InputFormat, MatchOptions as CoreMatchOptions,
-    MatchResult as CoreMatchResult, RuleTarget,
+    InputBehaviorMode, MatchInputFormat, MatchInputTarget, MatchOptions as CoreMatchOptions,
+    MatchResult as CoreMatchResult,
 };
 use wasm_bindgen::prelude::*;
 
@@ -30,13 +30,13 @@ fn parse_match_options(value: JsValue) -> Result<CoreMatchOptions, JsValue> {
         input_target: options
             .input_target
             .as_deref()
-            .map(RuleTarget::parse_arg)
+            .map(MatchInputTarget::parse_arg)
             .transpose()
             .map_err(to_js_error)?,
         input_format: options
             .input_format
             .as_deref()
-            .map(InputFormat::parse_arg)
+            .map(MatchInputFormat::parse_arg)
             .transpose()
             .map_err(to_js_error)?,
         input_behavior: options

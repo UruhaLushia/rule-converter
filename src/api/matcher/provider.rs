@@ -8,7 +8,7 @@ use yaml_rust2::Yaml;
 #[cfg(feature = "http")]
 use super::apply_match_options;
 use super::state::MatchState;
-use super::{MatchOptions, detect_match_file_input};
+use super::{MatchInputFormat, MatchInputTarget, MatchOptions, detect_match_file_input};
 use crate::codec::mihomo::mrs::read_mrs_stream;
 #[cfg(feature = "http")]
 use crate::input::detect_payload;
@@ -79,8 +79,8 @@ fn match_provider_path(
     state: &mut MatchState,
 ) -> Result<usize> {
     let options = MatchOptions {
-        input_target: provider.target,
-        input_format: provider.format,
+        input_target: provider.target.map(MatchInputTarget::from),
+        input_format: provider.format.map(MatchInputFormat::from),
         input_behavior: provider.behavior,
     };
     let detected = detect_match_file_input(path, options)?;
@@ -106,8 +106,8 @@ fn match_provider_payload(
     state: &mut MatchState,
 ) -> Result<usize> {
     let options = MatchOptions {
-        input_target: provider.target,
-        input_format: provider.format,
+        input_target: provider.target.map(MatchInputTarget::from),
+        input_format: provider.format.map(MatchInputFormat::from),
         input_behavior: provider.behavior,
     };
     let detected = apply_match_options(detect_payload(payload)?, options);

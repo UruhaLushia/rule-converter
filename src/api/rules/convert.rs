@@ -14,6 +14,7 @@ use super::input_plan::{
 use super::options::{normalize_options, options_with_output_behavior, resolve_output_behavior};
 use super::stream::{can_stream_text_to_path, stream_text_to_path};
 use super::types::{ConvertOptions, ConvertResult, FileInput, SkippedRule};
+use crate::codec::dat::{DatKind, detect_dat_kind};
 use crate::input::{InputSource, detect_payload, for_each_rule};
 use crate::output::{OutputFile, RuleSetOutput};
 use crate::rules::{BehaviorMode, Converter, RuleTextStore};
@@ -24,6 +25,9 @@ pub fn convert_payload(
 ) -> Result<ConvertResult> {
     let options = normalize_options(options);
     let payload = payload.as_ref();
+    if let Some(result) = convert_dat_payload(payload, options)? {
+        return Ok(result);
+    }
     let detected = apply_input_options(detect_payload(payload)?, options);
     let input_behavior = effective_input_behavior(detected);
     let output_behavior = resolve_output_behavior(options, input_behavior)?;
@@ -78,6 +82,9 @@ where
 {
     let options = normalize_options(options);
     let (paths, detected) = detect_configured_file_inputs(inputs, options)?;
+    if let Some(result) = convert_single_dat_file(&paths, options)? {
+        return Ok(result);
+    }
     if let Some(result) = convert_single_mrs_file_fast_path(&paths, &detected, options)? {
         return Ok(result);
     }
@@ -115,6 +122,43 @@ where
         bail!("no supported rules found for the requested conversion");
     }
     Ok(result)
+}
+
+fn convert_single_dat_file(
+    paths: &[std::path::PathBuf],
+    options: ConvertOptions,
+) -> Result<Option<ConvertResult>> {
+    if options.input_target.is_some() || options.input_format.is_some() || paths.len() != 1 {
+        return Ok(None);
+    }
+    let payload = std::fs::read(&paths[0])?;
+    convert_dat_payload(&payload, options)
+}
+
+fn convert_dat_payload(payload: &[u8], options: ConvertOptions) -> Result<Option<ConvertResult>> {
+    if options.input_target.is_some() || options.input_format.is_some() {
+        return Ok(None);
+    }
+    let Some(kind) = detect_dat_kind(payload) else {
+        return Ok(None);
+    };
+    let input_behavior = match kind {
+        DatKind::Geoip => crate::rules::InputBehaviorMode::Ipcidr,
+        DatKind::Geosite => crate::rules::InputBehaviorMode::Domain,
+    };
+    let output_behavior = resolve_output_behavior(options, input_behavior)?;
+    let mut result = match kind {
+        DatKind::Geoip => convert_rule_set_output(
+            crate::codec::dat::collect_geoip_dat_rule_set(payload, &[])?,
+            output_behavior,
+        ),
+        DatKind::Geosite => crate::codec::dat::collect_geosite_dat_rule_set(payload, &[])?,
+    };
+    result.output_behavior = output_behavior;
+    if result.is_empty() {
+        bail!("no supported rules found for the requested conversion");
+    }
+    Ok(Some(result))
 }
 
 pub fn convert_files_to_path_streaming<P, I>(

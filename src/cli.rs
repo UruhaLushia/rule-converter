@@ -47,8 +47,8 @@ fn run_match_command(cli: MatchCli) -> Result<()> {
         .into_iter()
         .map(|path| FileInput {
             path,
-            target: cli.input_target.map(Into::into),
-            format: cli.input_format.map(Into::into),
+            target: None,
+            format: None,
             behavior: cli
                 .input_behavior
                 .map(Into::into)

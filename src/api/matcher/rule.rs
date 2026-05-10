@@ -143,7 +143,9 @@ fn parsed_rule_matches_domain(parsed: ParsedMatchRule<'_>, domain: &str) -> Resu
         ClassicalKind::Domain => Ok(domain == payload),
         ClassicalKind::DomainSuffix => Ok(domain_matches_suffix(domain, payload)),
         ClassicalKind::DomainKeyword => Ok(domain.contains(payload)),
-        ClassicalKind::DomainRegex => Ok(Regex::new(payload)?.is_match(domain)),
+        ClassicalKind::DomainRegex => {
+            Ok(Regex::new(payload).is_ok_and(|regex| regex.is_match(domain)))
+        }
         ClassicalKind::DomainWildcard => Ok(wildcard_match(payload, domain)),
         _ => Ok(false),
     }

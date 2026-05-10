@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use rule_converter::{
-    BehaviorMode, ConfigJob, ConvertOptions, FileInput, InputBehaviorMode, OutputFormat,
-    RuleConfigJob, RuleTarget, load_config,
+    BehaviorMode, ConfigJob, ConvertOptions, FileInput, InputBehaviorMode, MatchInputFormat,
+    MatchInputTarget, OutputFormat, RuleConfigJob, RuleTarget, load_config,
 };
 
 #[derive(Debug, Parser)]
@@ -63,11 +63,11 @@ pub(super) struct MatchCli {
 
     /// Input rule target.
     #[arg(long, value_enum)]
-    pub(super) input_target: Option<RuleTargetArg>,
+    pub(super) input_target: Option<MatchTargetArg>,
 
     /// Input format.
     #[arg(long, value_enum)]
-    pub(super) input_format: Option<InputFormatArg>,
+    pub(super) input_format: Option<MatchFormatArg>,
 
     /// Input behavior.
     #[arg(long, value_enum)]
@@ -184,6 +184,31 @@ impl From<RuleTargetArg> for RuleTarget {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(super) enum MatchTargetArg {
+    Mihomo,
+    General,
+    Egern,
+    SingBox,
+    Geoip,
+    Geosite,
+    Asn,
+}
+
+impl From<MatchTargetArg> for MatchInputTarget {
+    fn from(value: MatchTargetArg) -> Self {
+        match value {
+            MatchTargetArg::Mihomo => RuleTarget::Mihomo.into(),
+            MatchTargetArg::General => RuleTarget::General.into(),
+            MatchTargetArg::Egern => RuleTarget::Egern.into(),
+            MatchTargetArg::SingBox => RuleTarget::SingBox.into(),
+            MatchTargetArg::Geoip => MatchInputTarget::Geoip,
+            MatchTargetArg::Geosite => MatchInputTarget::Geosite,
+            MatchTargetArg::Asn => MatchInputTarget::Asn,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub(super) enum InputFormatArg {
     Yaml,
     Mrs,
@@ -206,6 +231,41 @@ impl From<InputFormatArg> for rule_converter::InputFormat {
             | InputFormatArg::Ipset => rule_converter::InputFormat::Text,
             InputFormatArg::Json => rule_converter::InputFormat::Json,
             InputFormatArg::Srs => rule_converter::InputFormat::Srs,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub(super) enum MatchFormatArg {
+    Yaml,
+    Mrs,
+    Text,
+    Json,
+    Srs,
+    Domainset,
+    Ruleset,
+    Ipset,
+    Dat,
+    Mmdb,
+    SingDb,
+    Metadb,
+}
+
+impl From<MatchFormatArg> for MatchInputFormat {
+    fn from(value: MatchFormatArg) -> Self {
+        match value {
+            MatchFormatArg::Yaml => rule_converter::InputFormat::Yaml.into(),
+            MatchFormatArg::Mrs => rule_converter::InputFormat::Mrs.into(),
+            MatchFormatArg::Text
+            | MatchFormatArg::Domainset
+            | MatchFormatArg::Ruleset
+            | MatchFormatArg::Ipset => rule_converter::InputFormat::Text.into(),
+            MatchFormatArg::Json => rule_converter::InputFormat::Json.into(),
+            MatchFormatArg::Srs => rule_converter::InputFormat::Srs.into(),
+            MatchFormatArg::Dat => MatchInputFormat::Dat,
+            MatchFormatArg::Mmdb | MatchFormatArg::SingDb | MatchFormatArg::Metadb => {
+                MatchInputFormat::Mmdb
+            }
         }
     }
 }

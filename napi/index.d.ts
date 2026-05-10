@@ -62,8 +62,8 @@ export declare function listGeositeCodesFromBuffer(input: Uint8Array): Array<str
 
 
 export interface MatchOptions {
-  inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box'
-  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset'
+  inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'mmdb' | 'sing-db' | 'metadb'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
 }
 

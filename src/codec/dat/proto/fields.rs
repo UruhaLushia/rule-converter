@@ -36,6 +36,29 @@ pub(in crate::codec::dat) fn for_each_raw_message_field(
     Ok(())
 }
 
+pub(in crate::codec::dat) fn first_raw_message_field<'a>(
+    input: &'a [u8],
+    field_number: u32,
+    context: &'static str,
+) -> anyhow::Result<Option<&'a [u8]>> {
+    let mut pos = 0usize;
+    while pos < input.len() {
+        let key = read_varint(input, &mut pos)?;
+        let tag = key >> 3;
+        let wire_type = key & 0x07;
+        if tag == u64::from(field_number) && wire_type == 2 {
+            let len = read_varint(input, &mut pos)? as usize;
+            let end = pos
+                .checked_add(len)
+                .filter(|end| *end <= input.len())
+                .ok_or_else(|| anyhow::anyhow!("invalid {context} entry length"))?;
+            return Ok(Some(&input[pos..end]));
+        }
+        skip_field(input, &mut pos, wire_type, context)?;
+    }
+    Ok(None)
+}
+
 pub(in crate::codec::dat) fn for_each_message_field<M>(
     input: &[u8],
     field_number: u32,
