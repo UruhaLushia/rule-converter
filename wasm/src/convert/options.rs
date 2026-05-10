@@ -36,6 +36,17 @@ pub(super) fn parse_any_target(
     }
 }
 
+pub(super) fn any_target_from_detect_target(
+    value: rule_converter::DetectTarget,
+) -> Result<AnyTarget, JsValue> {
+    match value {
+        rule_converter::DetectTarget::Rule(target) => Ok(AnyTarget::Rule(target)),
+        rule_converter::DetectTarget::Geoip => Ok(AnyTarget::Geoip),
+        rule_converter::DetectTarget::Geosite => Ok(AnyTarget::Geosite),
+        rule_converter::DetectTarget::Asn => Ok(AnyTarget::Asn),
+    }
+}
+
 pub(super) fn parse_optional_db_format(value: Option<&str>) -> Result<Option<MmdbFormat>, JsValue> {
     value
         .map(MmdbFormat::parse)

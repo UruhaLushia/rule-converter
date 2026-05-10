@@ -20,4 +20,14 @@ impl InputFormat {
             other => bail!("unsupported input format: {other}"),
         }
     }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Yaml => "yaml",
+            Self::Mrs => "mrs",
+            Self::Text => "text",
+            Self::Json => "json",
+            Self::Srs => "srs",
+        }
+    }
 }

@@ -89,3 +89,12 @@ pub(crate) struct AnyStringResult {
     pub info: BTreeMap<String, AnyOutputInfo>,
     pub skipped: Vec<SkippedRule>,
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DetectResult {
+    pub kind: String,
+    pub target: String,
+    pub format: String,
+    pub behavior: Option<String>,
+}

@@ -26,6 +26,15 @@ impl BehaviorMode {
             other => anyhow::bail!("unsupported behavior: {other}"),
         }
     }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Domain => "domain",
+            Self::Ipcidr => "ip",
+            Self::Classical => "classical",
+        }
+    }
 }
 
 impl InputBehaviorMode {

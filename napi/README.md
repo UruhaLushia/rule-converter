@@ -15,6 +15,7 @@ pnpm --dir napi build
 import { writeFileSync } from 'node:fs'
 import {
   fileToBuf,
+  detectFile,
   listAsnNumbers,
   listGeoipCountries,
   listGeoipDatCountries,
@@ -82,6 +83,7 @@ console.log(listGeoipCountries('country.mmdb'))
 console.log(listGeoipDatCountries('geoip.dat'))
 console.log(listGeositeCodes('geosite.dat'))
 console.log(listAsnNumbers('GeoLite2-ASN.mmdb'))
+console.log(detectFile('geosite.dat'))
 ```
 
 ```js
@@ -106,6 +108,7 @@ console.log(route.matched, route.rules)
 - `bufToStr(input, options?)`: converts a `Uint8Array` payload and returns UTF-8 text outputs.
 - `strToStr(input, options?)`: converts a string payload and returns UTF-8 text outputs.
 - `fileToStr(input, options?)`: converts one input file path and returns UTF-8 text outputs.
+- `detectBuf(input)` / `detectStr(input)` / `detectFile(input)`: returns `{ kind, target, format, behavior }` without converting input.
 - `listGeoipCountries(input)`: reads a GeoIP MMDB file path and returns sorted country codes.
 - `listGeoipCountriesFromBuffer(input)`: reads GeoIP MMDB bytes and returns sorted country codes.
 - `listGeoipDatCountries(input)` / `listGeoipDatCountriesFromBuffer(input)`: reads V2Ray `geoip.dat` and returns sorted country codes.

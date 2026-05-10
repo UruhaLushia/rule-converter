@@ -9,7 +9,7 @@ use wasm_bindgen::prelude::*;
 use self::asn::{convert_asn_payload_any_to_js, convert_asn_payload_any_to_string_js};
 use self::geoip::{convert_geoip_payload_any_to_js, convert_geoip_payload_any_to_string_js};
 use self::geosite::convert_geosite_payload_any_to_js;
-use self::options::parse_any_target;
+use self::options::{any_target_from_detect_target, parse_any_target};
 use self::rules::convert_rule_payload_any_to_js;
 use crate::error::to_js_error;
 use crate::result::any_js_to_string;
@@ -84,12 +84,7 @@ fn parse_payload_input_target(
     if options.input_target.is_some() {
         return parse_any_target(options.input_target.as_deref(), true);
     }
-    if matches!(options.input_format.as_deref(), None | Some("dat")) {
-        match rule_converter::codec::dat::detect_dat_kind(payload) {
-            Some(rule_converter::codec::dat::DatKind::Geoip) => return Ok(AnyTarget::Geoip),
-            Some(rule_converter::codec::dat::DatKind::Geosite) => return Ok(AnyTarget::Geosite),
-            None => {}
-        }
-    }
-    parse_any_target(None, true)
+    any_target_from_detect_target(
+        rule_converter::detect_payload_target(payload).map_err(to_js_error)?,
+    )
 }

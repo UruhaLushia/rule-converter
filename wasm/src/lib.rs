@@ -1,4 +1,5 @@
 mod convert;
+mod detect;
 mod error;
 mod list;
 mod matcher;

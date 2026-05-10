@@ -75,3 +75,13 @@ pub struct AnyStringResult {
     pub info: HashMap<String, AnyOutputInfo>,
     pub skipped: Vec<SkippedRule>,
 }
+
+#[napi(object)]
+pub struct DetectResult {
+    #[napi(ts_type = "'rules' | 'db'")]
+    pub kind: String,
+    #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'")]
+    pub target: String,
+    pub format: String,
+    pub behavior: Option<String>,
+}

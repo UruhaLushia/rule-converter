@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use rule_converter::{
-    BehaviorMode, ConfigJob, ConvertOptions, FileInput, InputBehaviorMode, MatchInputFormat,
-    MatchInputTarget, OutputFormat, RuleConfigJob, RuleTarget, load_config,
+    ConfigJob, ConvertOptions, FileInput, InputBehaviorMode, RuleConfigJob, load_config,
 };
 
 #[derive(Debug, Parser)]
@@ -21,25 +20,30 @@ pub(super) struct Cli {
 pub(super) enum Command {
     /// Convert rule files between supported targets and formats.
     Convert(ConvertCli),
+    /// Detect input file type without converting it.
+    Detect(DetectCli),
     /// Match a domain or IP against rule files.
     Match(MatchCli),
 }
 
 #[derive(Debug, Parser)]
+pub(super) struct DetectCli {
+    /// Input file(s) to inspect.
+    #[arg(value_name = "PATH", num_args = 1..)]
+    pub(super) paths: Vec<PathBuf>,
+}
+
+#[derive(Debug, Parser)]
 pub(super) struct ConvertCli {
-    /// Source rule file(s), followed by the target output file.
     #[arg(value_name = "PATH", num_args = 0..)]
     pub(super) paths: Vec<PathBuf>,
 
-    /// YAML, TOML, or JSON automation config. Supports a single job or a jobs list.
     #[arg(short, long)]
     pub(super) config: Option<PathBuf>,
 
-    /// Output rule target.
     #[arg(long, value_enum, default_value_t = RuleTargetArg::Mihomo)]
     pub(super) output_target: RuleTargetArg,
 
-    /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormatArg::Mrs)]
     pub(super) output_format: OutputFormatArg,
 
@@ -54,10 +58,8 @@ pub(super) struct ConvertCli {
 
 #[derive(Debug, Parser)]
 pub(super) struct MatchCli {
-    /// Domain name or IP address to match.
     pub(super) query: String,
 
-    /// Rule input file(s), directory, or wildcard path.
     #[arg(value_name = "PATH", num_args = 1..)]
     pub(super) paths: Vec<PathBuf>,
 
@@ -154,12 +156,12 @@ pub(super) enum BehaviorArg {
     Classical,
 }
 
-impl From<BehaviorArg> for BehaviorMode {
+impl From<BehaviorArg> for rule_converter::BehaviorMode {
     fn from(value: BehaviorArg) -> Self {
         match value {
-            BehaviorArg::Domain => BehaviorMode::Domain,
-            BehaviorArg::Ip => BehaviorMode::Ipcidr,
-            BehaviorArg::Classical => BehaviorMode::Classical,
+            BehaviorArg::Domain => rule_converter::BehaviorMode::Domain,
+            BehaviorArg::Ip => rule_converter::BehaviorMode::Ipcidr,
+            BehaviorArg::Classical => rule_converter::BehaviorMode::Classical,
         }
     }
 }
@@ -172,13 +174,13 @@ pub(super) enum RuleTargetArg {
     SingBox,
 }
 
-impl From<RuleTargetArg> for RuleTarget {
+impl From<RuleTargetArg> for rule_converter::RuleTarget {
     fn from(value: RuleTargetArg) -> Self {
         match value {
-            RuleTargetArg::Mihomo => RuleTarget::Mihomo,
-            RuleTargetArg::General => RuleTarget::General,
-            RuleTargetArg::Egern => RuleTarget::Egern,
-            RuleTargetArg::SingBox => RuleTarget::SingBox,
+            RuleTargetArg::Mihomo => rule_converter::RuleTarget::Mihomo,
+            RuleTargetArg::General => rule_converter::RuleTarget::General,
+            RuleTargetArg::Egern => rule_converter::RuleTarget::Egern,
+            RuleTargetArg::SingBox => rule_converter::RuleTarget::SingBox,
         }
     }
 }
@@ -194,16 +196,16 @@ pub(super) enum MatchTargetArg {
     Asn,
 }
 
-impl From<MatchTargetArg> for MatchInputTarget {
+impl From<MatchTargetArg> for rule_converter::MatchInputTarget {
     fn from(value: MatchTargetArg) -> Self {
         match value {
-            MatchTargetArg::Mihomo => RuleTarget::Mihomo.into(),
-            MatchTargetArg::General => RuleTarget::General.into(),
-            MatchTargetArg::Egern => RuleTarget::Egern.into(),
-            MatchTargetArg::SingBox => RuleTarget::SingBox.into(),
-            MatchTargetArg::Geoip => MatchInputTarget::Geoip,
-            MatchTargetArg::Geosite => MatchInputTarget::Geosite,
-            MatchTargetArg::Asn => MatchInputTarget::Asn,
+            MatchTargetArg::Mihomo => rule_converter::RuleTarget::Mihomo.into(),
+            MatchTargetArg::General => rule_converter::RuleTarget::General.into(),
+            MatchTargetArg::Egern => rule_converter::RuleTarget::Egern.into(),
+            MatchTargetArg::SingBox => rule_converter::RuleTarget::SingBox.into(),
+            MatchTargetArg::Geoip => rule_converter::MatchInputTarget::Geoip,
+            MatchTargetArg::Geosite => rule_converter::MatchInputTarget::Geosite,
+            MatchTargetArg::Asn => rule_converter::MatchInputTarget::Asn,
         }
     }
 }
@@ -251,7 +253,7 @@ pub(super) enum MatchFormatArg {
     Metadb,
 }
 
-impl From<MatchFormatArg> for MatchInputFormat {
+impl From<MatchFormatArg> for rule_converter::MatchInputFormat {
     fn from(value: MatchFormatArg) -> Self {
         match value {
             MatchFormatArg::Yaml => rule_converter::InputFormat::Yaml.into(),
@@ -262,9 +264,9 @@ impl From<MatchFormatArg> for MatchInputFormat {
             | MatchFormatArg::Ipset => rule_converter::InputFormat::Text.into(),
             MatchFormatArg::Json => rule_converter::InputFormat::Json.into(),
             MatchFormatArg::Srs => rule_converter::InputFormat::Srs.into(),
-            MatchFormatArg::Dat => MatchInputFormat::Dat,
+            MatchFormatArg::Dat => rule_converter::MatchInputFormat::Dat,
             MatchFormatArg::Mmdb | MatchFormatArg::SingDb | MatchFormatArg::Metadb => {
-                MatchInputFormat::Mmdb
+                rule_converter::MatchInputFormat::Mmdb
             }
         }
     }
@@ -282,17 +284,17 @@ pub(super) enum OutputFormatArg {
     Ipset,
 }
 
-impl From<OutputFormatArg> for OutputFormat {
+impl From<OutputFormatArg> for rule_converter::OutputFormat {
     fn from(value: OutputFormatArg) -> Self {
         match value {
-            OutputFormatArg::Mrs => OutputFormat::Mrs,
-            OutputFormatArg::Text => OutputFormat::Text,
-            OutputFormatArg::Yaml => OutputFormat::Yaml,
-            OutputFormatArg::Json => OutputFormat::Json,
-            OutputFormatArg::Srs => OutputFormat::Srs,
-            OutputFormatArg::Domainset => OutputFormat::DomainSet,
-            OutputFormatArg::Ruleset => OutputFormat::RuleSet,
-            OutputFormatArg::Ipset => OutputFormat::IpSet,
+            OutputFormatArg::Mrs => rule_converter::OutputFormat::Mrs,
+            OutputFormatArg::Text => rule_converter::OutputFormat::Text,
+            OutputFormatArg::Yaml => rule_converter::OutputFormat::Yaml,
+            OutputFormatArg::Json => rule_converter::OutputFormat::Json,
+            OutputFormatArg::Srs => rule_converter::OutputFormat::Srs,
+            OutputFormatArg::Domainset => rule_converter::OutputFormat::DomainSet,
+            OutputFormatArg::Ruleset => rule_converter::OutputFormat::RuleSet,
+            OutputFormatArg::Ipset => rule_converter::OutputFormat::IpSet,
         }
     }
 }

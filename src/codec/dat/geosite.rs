@@ -68,14 +68,8 @@ pub fn collect_geosite_dat_rule_set(input: &[u8], codes: &[String]) -> Result<Co
     let mut outputs = Vec::new();
     let mut mixed_rules = RuleTextStore::default();
     for set in sets {
-        if let Some(output) = set.output {
-            if let RuleSetOutput::Domain(domain_set) = output {
-                domain_set.for_each_rule(|rule| {
-                    builder
-                        .insert(rule)
-                        .map_err(|err| io_error_from_anyhow(err))
-                })?;
-            }
+        if let Some(RuleSetOutput::Domain(domain_set)) = set.output {
+            domain_set.for_each_rule(|rule| builder.insert(rule).map_err(io_error_from_anyhow))?;
         }
         for rule in set.mixed_rules.iter() {
             mixed_rules.push(rule);

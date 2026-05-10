@@ -55,6 +55,17 @@ pub(super) fn parse_any_output_target(value: Option<&str>) -> Result<AnyTarget> 
     parse_any_target(value, false)
 }
 
+pub(super) fn any_target_from_detect_target(
+    value: rule_converter::DetectTarget,
+) -> Result<AnyTarget> {
+    match value {
+        rule_converter::DetectTarget::Rule(target) => Ok(AnyTarget::Rule(target)),
+        rule_converter::DetectTarget::Geoip => Ok(AnyTarget::Geoip),
+        rule_converter::DetectTarget::Geosite => Ok(AnyTarget::Geosite),
+        rule_converter::DetectTarget::Asn => Ok(AnyTarget::Asn),
+    }
+}
+
 pub(super) fn parse_any_target(
     value: Option<&str>,
     allow_auto_rule_input: bool,

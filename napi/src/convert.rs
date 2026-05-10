@@ -17,7 +17,7 @@ use self::geoip::{
     convert_geoip_payload_any_to_buffer, convert_geoip_payload_any_to_string,
 };
 use self::geosite::{convert_geosite_file_any_to_buffer, convert_geosite_payload_any_to_buffer};
-use self::options::parse_any_input_target;
+use self::options::{any_target_from_detect_target, parse_any_input_target};
 use self::result::any_buffer_result_to_string;
 use self::rules::{convert_rule_file_any_to_buffer, convert_rule_payload_any_to_buffer};
 use crate::types::{AnyBufferResult, AnyConvertOptions, AnyStringResult, AnyTarget};
@@ -134,20 +134,17 @@ fn parse_file_input_target(input: &str, options: &AnyConvertOptions) -> Result<A
     if options.input_target.is_some() {
         return parse_any_input_target(options.input_target.as_deref());
     }
-    let bytes = std::fs::read(input).map_err(|err| napi::Error::from_reason(err.to_string()))?;
-    parse_payload_input_target(&bytes, options)
+    let target = rule_converter::detect_file_type(input)
+        .map(|result| result.target)
+        .map_err(crate::error::to_napi_error)?;
+    parse_any_input_target(Some(&target))
 }
 
 fn parse_payload_input_target(payload: &[u8], options: &AnyConvertOptions) -> Result<AnyTarget> {
     if options.input_target.is_some() {
         return parse_any_input_target(options.input_target.as_deref());
     }
-    if matches!(options.input_format.as_deref(), None | Some("dat")) {
-        match rule_converter::codec::dat::detect_dat_kind(payload) {
-            Some(rule_converter::codec::dat::DatKind::Geoip) => return Ok(AnyTarget::Geoip),
-            Some(rule_converter::codec::dat::DatKind::Geosite) => return Ok(AnyTarget::Geosite),
-            None => {}
-        }
-    }
-    parse_any_input_target(None)
+    let target =
+        rule_converter::detect_payload_target(payload).map_err(crate::error::to_napi_error)?;
+    any_target_from_detect_target(target)
 }

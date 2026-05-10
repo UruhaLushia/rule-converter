@@ -72,6 +72,12 @@ CLI 使用子命令。`convert` 做转换：最后一个路径是输出，其余
 target/release/rule-converter convert rules.yaml rules.mrs
 ```
 
+轻量检测输入文件类型，输出 JSON：
+
+```bash
+target/release/rule-converter detect rules.yaml geosite.dat country.mmdb
+```
+
 指定输出目标、格式和行为：
 
 ```bash

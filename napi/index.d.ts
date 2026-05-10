@@ -36,6 +36,13 @@ export interface AnyStringResult {
   skipped: Array<SkippedRule>
 }
 
+export interface DetectResult {
+  kind: 'rules' | 'db'
+  target: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
+  format: string
+  behavior?: string
+}
+
 export declare function bufToBuf(input: Uint8Array, options?: AnyConvertOptions | undefined | null): AnyBufferResult
 
 export declare function bufToStr(input: Uint8Array, options?: AnyConvertOptions | undefined | null): AnyStringResult
@@ -43,6 +50,12 @@ export declare function bufToStr(input: Uint8Array, options?: AnyConvertOptions 
 export declare function fileToBuf(input: string, options?: AnyConvertOptions | undefined | null): AnyBufferResult
 
 export declare function fileToStr(input: string, options?: AnyConvertOptions | undefined | null): AnyStringResult
+
+export declare function detectBuf(input: Uint8Array): DetectResult
+
+export declare function detectStr(input: string): DetectResult
+
+export declare function detectFile(input: string): DetectResult
 
 export declare function listAsnNumbers(input: string): Array<number>
 

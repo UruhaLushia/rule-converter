@@ -145,6 +145,15 @@ const geositeRules = bufToStr(geositeDatBytes, {
 })
 ```
 
+Use `detectBuf` / `detectStr` to inspect uploaded input without converting it:
+
+```js
+import init, { detectBuf } from '@uruhalushia/rule-converter-wasm'
+
+await init()
+console.log(detectBuf(new Uint8Array(await file.arrayBuffer())))
+```
+
 
 Rule matching uses the same input options as conversion. Mihomo config input is supported when providers use local `path`/`file://` references supplied by the host application; browser HTTP provider downloads should be handled by the caller before matching:
 
