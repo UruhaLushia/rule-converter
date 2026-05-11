@@ -155,6 +155,14 @@ pub(super) fn derived_input_cases() -> Vec<InputCase> {
         RuleKind::Domain,
     );
     add(
+        &domain,
+        output_by_name("general-adguard"),
+        RuleTarget::General,
+        InputFormat::Adguard,
+        InputBehaviorMode::Domain,
+        RuleKind::Domain,
+    );
+    add(
         &ip,
         output_by_name("general-ipset"),
         RuleTarget::General,

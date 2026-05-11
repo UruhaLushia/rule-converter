@@ -200,6 +200,13 @@ fn detect_text_reader<R: BufRead>(reader: R) -> Result<DetectedInput> {
         if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
             continue;
         }
+        if crate::codec::generic::text::looks_like_adguard_line(line) {
+            return Ok(DetectedInput {
+                target: RuleTarget::General,
+                format: InputFormat::Adguard,
+                behavior: BehaviorMode::Domain,
+            });
+        }
 
         let current = classify_text_rule_behavior(line);
         behavior = match behavior {

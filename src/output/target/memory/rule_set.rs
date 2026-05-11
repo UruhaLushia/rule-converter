@@ -51,6 +51,9 @@ pub(super) fn write_rule_set_to_memory(
         OutputFormat::RuleSet if target == RuleTarget::Egern => {
             egern::write_ruleset_yaml_with_options(bytes, rule_set, no_resolve).map_err(Into::into)
         }
+        OutputFormat::Adguard if target == RuleTarget::General => rule_set
+            .for_each_rule(|rule| generic::text::write_adguard_domain_rule(bytes, rule))
+            .map_err(Into::into),
         _ => unreachable!("format was validated before memory writing"),
     }
 }

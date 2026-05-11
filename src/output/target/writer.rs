@@ -127,10 +127,15 @@ fn validate_output_request(
         RuleTarget::General
             if !matches!(
                 format,
-                OutputFormat::DomainSet | OutputFormat::RuleSet | OutputFormat::IpSet
+                OutputFormat::DomainSet
+                    | OutputFormat::Adguard
+                    | OutputFormat::RuleSet
+                    | OutputFormat::IpSet
             ) =>
         {
-            bail!("general output only supports `domainset`, `ruleset`, and `ipset` formats");
+            bail!(
+                "general output only supports `domainset`, `adguard`, `ruleset`, and `ipset` formats"
+            );
         }
         RuleTarget::Egern if !matches!(format, OutputFormat::Yaml | OutputFormat::RuleSet) => {
             bail!("egern output only supports `yaml` format");

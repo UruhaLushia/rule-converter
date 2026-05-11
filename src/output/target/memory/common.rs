@@ -37,9 +37,10 @@ pub(super) fn estimate_rule_set_bytes(rule_set: &RuleSetOutput, format: OutputFo
 pub(super) fn estimate_text_rules_bytes(count: usize, format: OutputFormat) -> usize {
     match format {
         OutputFormat::Yaml | OutputFormat::RuleSet => 16 + count.saturating_mul(24),
-        OutputFormat::Text | OutputFormat::DomainSet | OutputFormat::IpSet => {
-            count.saturating_mul(20)
-        }
+        OutputFormat::Text
+        | OutputFormat::DomainSet
+        | OutputFormat::Adguard
+        | OutputFormat::IpSet => count.saturating_mul(20),
         OutputFormat::Mrs | OutputFormat::Json | OutputFormat::Srs => 0,
     }
 }

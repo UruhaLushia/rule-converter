@@ -41,7 +41,7 @@ fn lists_indexes_from_any_detected_db_input() {
     .unwrap();
     assert_eq!(
         list_input_indexes_from_bytes(&geoip_dat.bytes).unwrap(),
-        [index_section("GeoIP DAT Countries", ["CN"])]
+        [index_section("GeoIP DAT Countries", ["cn"])]
     );
 
     let geosite_dat = build_geosite_dat_to_memory([(

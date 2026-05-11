@@ -136,7 +136,10 @@ pub(super) fn should_build_rule_sets(
 ) -> bool {
     match (options.output_target, options.output_format) {
         (RuleTarget::SingBox, OutputFormat::Json | OutputFormat::Srs) => false,
-        (RuleTarget::General, OutputFormat::DomainSet | OutputFormat::IpSet) => true,
+        (
+            RuleTarget::General,
+            OutputFormat::DomainSet | OutputFormat::Adguard | OutputFormat::IpSet,
+        ) => true,
         (RuleTarget::General, OutputFormat::RuleSet) => false,
         (RuleTarget::Mihomo, OutputFormat::Text | OutputFormat::Yaml) => {
             options.output_behavior != BehaviorMode::Classical
@@ -146,7 +149,11 @@ pub(super) fn should_build_rule_sets(
 }
 
 pub(super) fn should_keep_domain_set_lines(options: ConvertOptions) -> bool {
-    options.output_target == RuleTarget::General && options.output_format == OutputFormat::DomainSet
+    options.output_target == RuleTarget::General
+        && matches!(
+            options.output_format,
+            OutputFormat::DomainSet | OutputFormat::Adguard
+        )
 }
 
 pub(super) fn should_keep_ip_set_lines(options: ConvertOptions) -> bool {
@@ -162,7 +169,10 @@ pub(super) fn should_keep_mixed_rules(
             options.output_behavior == BehaviorMode::Classical
         }
         (RuleTarget::General, OutputFormat::RuleSet) => true,
-        (RuleTarget::General, OutputFormat::DomainSet | OutputFormat::IpSet) => false,
+        (
+            RuleTarget::General,
+            OutputFormat::DomainSet | OutputFormat::Adguard | OutputFormat::IpSet,
+        ) => false,
         (RuleTarget::Egern, OutputFormat::RuleSet) => false,
         _ => {
             options.output_behavior == BehaviorMode::Classical

@@ -5,13 +5,13 @@ use std::path::Path;
 use anyhow::{Result, bail};
 
 use crate::BehaviorMode;
+use crate::RuleTarget;
 use crate::codec::generic;
 use crate::codec::mihomo::mrs::{Behavior, RuleSetOutput};
 use crate::output::OutputFormat;
+use crate::output::target::resolve_output_path_for_target;
 
 use super::common::{OutputFile, create_output_writer, output_file};
-use crate::RuleTarget;
-use crate::output::target::resolve_output_path_for_target;
 
 pub(super) fn write_generic_text_to_path(
     outputs: &[RuleSetOutput],
@@ -58,9 +58,16 @@ pub(super) fn write_generic_text(
     rule_set: &RuleSetOutput,
     format: OutputFormat,
 ) -> Result<()> {
-    if format == OutputFormat::DomainSet && matches!(rule_set, RuleSetOutput::Domain(_)) {
+    if matches!(format, OutputFormat::DomainSet | OutputFormat::Adguard)
+        && matches!(rule_set, RuleSetOutput::Domain(_))
+    {
+        let writer = if format == OutputFormat::Adguard {
+            generic::text::write_adguard_domain_rule
+        } else {
+            generic::text::write_domain_set_rule
+        };
         return rule_set
-            .for_each_rule(|rule| generic::text::write_domain_set_rule(file, rule))
+            .for_each_rule(|rule| writer(file, rule))
             .map_err(Into::into);
     }
 
@@ -81,7 +88,9 @@ fn should_write_general_rule_set(
     format: OutputFormat,
 ) -> bool {
     match format {
-        OutputFormat::DomainSet => matches!(rule_set, RuleSetOutput::Domain(_)),
+        OutputFormat::DomainSet | OutputFormat::Adguard => {
+            matches!(rule_set, RuleSetOutput::Domain(_))
+        }
         OutputFormat::IpSet => matches!(rule_set, RuleSetOutput::Ipcidr(_)),
         OutputFormat::RuleSet => match behavior {
             BehaviorMode::Domain => matches!(rule_set, RuleSetOutput::Domain(_)),

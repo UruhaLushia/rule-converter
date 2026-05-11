@@ -24,7 +24,10 @@ pub(super) fn write_rule_set(
         OutputFormat::Json | OutputFormat::Srs => {
             unreachable!("sing-box formats are handled before split rule-set writing")
         }
-        OutputFormat::DomainSet | OutputFormat::IpSet | OutputFormat::RuleSet
+        OutputFormat::DomainSet
+        | OutputFormat::Adguard
+        | OutputFormat::IpSet
+        | OutputFormat::RuleSet
             if target == RuleTarget::General =>
         {
             write_generic_text(&mut file, rule_set, format)
@@ -73,6 +76,9 @@ pub(super) fn write_rule_set(
         OutputFormat::RuleSet if target == RuleTarget::Egern => {
             egern::write_ruleset_yaml_with_options(file, rule_set, no_resolve).map_err(Into::into)
         }
-        OutputFormat::DomainSet | OutputFormat::IpSet | OutputFormat::RuleSet => unreachable!(),
+        OutputFormat::DomainSet
+        | OutputFormat::Adguard
+        | OutputFormat::IpSet
+        | OutputFormat::RuleSet => unreachable!(),
     }
 }

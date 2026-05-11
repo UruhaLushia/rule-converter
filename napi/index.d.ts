@@ -9,10 +9,10 @@ export interface AnyBufferResult {
 
 export interface AnyConvertOptions {
   inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
-  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'adguard' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
   outputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
-  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
+  outputFormat?: 'mrs' | 'text' | 'adguard' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
   outputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
   countries?: Array<string>
   codes?: Array<string>
@@ -88,7 +88,7 @@ export declare function matchFile(input: string, query: string, options?: MatchO
 
 export interface MatchOptions {
   inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
-  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'sing-geosite' | 'mmdb' | 'sing-db' | 'metadb'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'adguard' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'sing-geosite' | 'mmdb' | 'sing-db' | 'metadb'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
 }
 

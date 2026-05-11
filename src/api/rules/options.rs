@@ -11,7 +11,9 @@ pub fn default_output_behavior(
 ) -> BehaviorMode {
     match (output_target, output_format) {
         (RuleTarget::General, OutputFormat::IpSet) => BehaviorMode::Ipcidr,
-        (RuleTarget::General, OutputFormat::DomainSet) => BehaviorMode::Domain,
+        (RuleTarget::General, OutputFormat::DomainSet | OutputFormat::Adguard) => {
+            BehaviorMode::Domain
+        }
         (RuleTarget::Mihomo, OutputFormat::Mrs) => BehaviorMode::Auto,
         _ => BehaviorMode::Classical,
     }
@@ -32,7 +34,9 @@ pub(super) fn normalize_output_behavior(
     output_behavior: BehaviorMode,
 ) -> BehaviorMode {
     match (output_target, output_format) {
-        (RuleTarget::General, OutputFormat::DomainSet) => BehaviorMode::Domain,
+        (RuleTarget::General, OutputFormat::DomainSet | OutputFormat::Adguard) => {
+            BehaviorMode::Domain
+        }
         (RuleTarget::General, OutputFormat::IpSet) => BehaviorMode::Ipcidr,
         _ => output_behavior,
     }

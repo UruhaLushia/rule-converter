@@ -173,8 +173,8 @@ Options use the same names as the N-API package:
 
 ```ts
 type RuleTarget = 'mihomo' | 'general' | 'egern' | 'sing-box'
-type InputFormat = 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
-type OutputFormat = 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
+type InputFormat = 'yaml' | 'mrs' | 'text' | 'adguard' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
+type OutputFormat = 'mrs' | 'text' | 'adguard' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
 type InputBehavior = 'auto' | 'domain' | 'ip' | 'classical'
 type OutputBehavior = 'domain' | 'ip' | 'classical'
 ```

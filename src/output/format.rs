@@ -5,6 +5,7 @@ pub enum OutputFormat {
     Mrs,
     Text,
     Yaml,
+    Adguard,
     Json,
     Srs,
     DomainSet,
@@ -18,6 +19,7 @@ impl OutputFormat {
             "mrs" => Ok(Self::Mrs),
             "text" => Ok(Self::Text),
             "yaml" => Ok(Self::Yaml),
+            "adguard" | "adguard-dns-filter" => Ok(Self::Adguard),
             "json" => Ok(Self::Json),
             "srs" => Ok(Self::Srs),
             "domainset" => Ok(Self::DomainSet),
@@ -32,6 +34,7 @@ impl OutputFormat {
             Self::Mrs => "mrs",
             Self::Text => "text",
             Self::Yaml => "yaml",
+            Self::Adguard => "adguard",
             Self::Json => "json",
             Self::Srs => "srs",
             Self::DomainSet => "domainset",
@@ -45,6 +48,7 @@ impl OutputFormat {
             Self::Mrs => "mrs",
             Self::Text => "list",
             Self::Yaml => "yaml",
+            Self::Adguard => "txt",
             Self::Json => "json",
             Self::Srs => "srs",
             Self::DomainSet | Self::RuleSet | Self::IpSet => "list",
@@ -54,7 +58,7 @@ impl OutputFormat {
     pub fn is_text_ruleset(self) -> bool {
         matches!(
             self,
-            Self::Text | Self::Yaml | Self::DomainSet | Self::RuleSet | Self::IpSet
+            Self::Text | Self::Yaml | Self::Adguard | Self::DomainSet | Self::RuleSet | Self::IpSet
         )
     }
 }

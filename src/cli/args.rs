@@ -207,37 +207,11 @@ impl From<MatchTargetArg> for rule_converter::MatchInputTarget {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-pub(super) enum InputFormatArg {
-    Yaml,
-    Mrs,
-    Text,
-    Json,
-    Srs,
-    Domainset,
-    Ruleset,
-    Ipset,
-}
-
-impl From<InputFormatArg> for rule_converter::InputFormat {
-    fn from(value: InputFormatArg) -> Self {
-        match value {
-            InputFormatArg::Yaml => rule_converter::InputFormat::Yaml,
-            InputFormatArg::Mrs => rule_converter::InputFormat::Mrs,
-            InputFormatArg::Text
-            | InputFormatArg::Domainset
-            | InputFormatArg::Ruleset
-            | InputFormatArg::Ipset => rule_converter::InputFormat::Text,
-            InputFormatArg::Json => rule_converter::InputFormat::Json,
-            InputFormatArg::Srs => rule_converter::InputFormat::Srs,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 pub(super) enum MatchFormatArg {
     Yaml,
     Mrs,
     Text,
+    Adguard,
     Json,
     Srs,
     Domainset,
@@ -259,6 +233,7 @@ impl From<MatchFormatArg> for rule_converter::MatchInputFormat {
             | MatchFormatArg::Domainset
             | MatchFormatArg::Ruleset
             | MatchFormatArg::Ipset => rule_converter::InputFormat::Text.into(),
+            MatchFormatArg::Adguard => rule_converter::InputFormat::Adguard.into(),
             MatchFormatArg::Json => rule_converter::InputFormat::Json.into(),
             MatchFormatArg::Srs => rule_converter::InputFormat::Srs.into(),
             MatchFormatArg::Dat => rule_converter::MatchInputFormat::Dat,
@@ -274,6 +249,7 @@ impl From<MatchFormatArg> for rule_converter::MatchInputFormat {
 pub(super) enum OutputFormatArg {
     Mrs,
     Text,
+    Adguard,
     Yaml,
     Json,
     Srs,
@@ -287,6 +263,7 @@ impl From<OutputFormatArg> for rule_converter::OutputFormat {
         match value {
             OutputFormatArg::Mrs => rule_converter::OutputFormat::Mrs,
             OutputFormatArg::Text => rule_converter::OutputFormat::Text,
+            OutputFormatArg::Adguard => rule_converter::OutputFormat::Adguard,
             OutputFormatArg::Yaml => rule_converter::OutputFormat::Yaml,
             OutputFormatArg::Json => rule_converter::OutputFormat::Json,
             OutputFormatArg::Srs => rule_converter::OutputFormat::Srs,

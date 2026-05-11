@@ -23,6 +23,9 @@ pub fn parse_input_as(
             sing_box::json::parse_json(raw.as_ref())
         }
         InputFormat::Srs if target == RuleTarget::SingBox => sing_box::srs::parse_srs(raw.as_ref()),
+        InputFormat::Adguard if target == RuleTarget::General => {
+            generic::text::parse_adguard(raw.as_ref())
+        }
         InputFormat::Text => generic::text::parse_plain(raw.as_ref()),
         _ => anyhow::bail!("unsupported input target/format combination"),
     }
@@ -42,6 +45,9 @@ pub fn for_each_rule<R: BufRead>(
             for_each_sing_box_json_rule(reader, f)
         }
         InputFormat::Srs if target == RuleTarget::SingBox => for_each_sing_box_srs_rule(reader, f),
+        InputFormat::Adguard if target == RuleTarget::General => {
+            generic::text::for_each_adguard_rule(reader, f)
+        }
         InputFormat::Text => generic::text::for_each_plain_rule(reader, f),
         _ => anyhow::bail!("unsupported input target/format combination"),
     }

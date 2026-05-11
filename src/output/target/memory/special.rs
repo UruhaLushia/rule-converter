@@ -20,7 +20,9 @@ pub(super) fn write_mixed_rules_to_memory(
         OutputFormat::RuleSet | OutputFormat::DomainSet | OutputFormat::IpSet => {
             generic::text::write_plain_rules(&mut bytes, rules.iter())?
         }
-        OutputFormat::Mrs | OutputFormat::Json | OutputFormat::Srs => unreachable!(),
+        OutputFormat::Mrs | OutputFormat::Adguard | OutputFormat::Json | OutputFormat::Srs => {
+            unreachable!()
+        }
     }
     Ok(vec![memory_output(
         Behavior::Domain,

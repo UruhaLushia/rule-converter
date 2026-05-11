@@ -90,6 +90,14 @@ pub(super) fn output_cases() -> Vec<OutputCase> {
             accepts: domain_or_classical,
         },
         OutputCase {
+            name: "general-adguard",
+            to: "general-adguard",
+            target: RuleTarget::General,
+            format: OutputFormat::Adguard,
+            behavior: BehaviorMode::Domain,
+            accepts: domain_or_classical,
+        },
+        OutputCase {
             name: "general-ipset",
             to: "general-ipset",
             target: RuleTarget::General,

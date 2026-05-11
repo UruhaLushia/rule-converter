@@ -20,7 +20,10 @@ pub(super) fn can_stream_text_to_path(options: ConvertOptions) -> bool {
         (options.output_target, options.output_format),
         (
             RuleTarget::General,
-            OutputFormat::RuleSet | OutputFormat::DomainSet | OutputFormat::IpSet
+            OutputFormat::RuleSet
+                | OutputFormat::DomainSet
+                | OutputFormat::Adguard
+                | OutputFormat::IpSet
         ) | (RuleTarget::Mihomo, OutputFormat::Text | OutputFormat::Yaml)
     ) && options.output_behavior != BehaviorMode::Auto
 }
@@ -112,6 +115,9 @@ impl StreamTextState {
         match (self.target, self.format) {
             (RuleTarget::General, OutputFormat::DomainSet) => {
                 generic::text::write_domain_set_rule(writer, &out)?
+            }
+            (RuleTarget::General, OutputFormat::Adguard) => {
+                generic::text::write_adguard_domain_rule(writer, &out)?
             }
             (RuleTarget::General, OutputFormat::IpSet) => {
                 generic::text::write_plain_rule(writer, &out)?

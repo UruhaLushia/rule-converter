@@ -25,7 +25,9 @@ pub(super) fn write_mixed_rules_to_path(
         OutputFormat::RuleSet | OutputFormat::DomainSet | OutputFormat::IpSet => {
             generic::text::write_plain_rules(&mut file, rules.iter())?
         }
-        OutputFormat::Mrs => unreachable!("mixed rule text writer does not handle MRS"),
+        OutputFormat::Mrs | OutputFormat::Adguard => {
+            unreachable!("mixed rule text writer does not handle this format")
+        }
         OutputFormat::Json | OutputFormat::Srs => {
             unreachable!("mixed rule text writer does not handle sing-box formats")
         }

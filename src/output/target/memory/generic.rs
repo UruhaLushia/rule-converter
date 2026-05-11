@@ -43,9 +43,16 @@ fn write_general_rule_set(
     rule_set: &RuleSetOutput,
     format: OutputFormat,
 ) -> Result<()> {
-    if format == OutputFormat::DomainSet && matches!(rule_set, RuleSetOutput::Domain(_)) {
+    if matches!(format, OutputFormat::DomainSet | OutputFormat::Adguard)
+        && matches!(rule_set, RuleSetOutput::Domain(_))
+    {
+        let writer = if format == OutputFormat::Adguard {
+            generic::text::write_adguard_domain_rule
+        } else {
+            generic::text::write_domain_set_rule
+        };
         return rule_set
-            .for_each_rule(|rule| generic::text::write_domain_set_rule(bytes, rule))
+            .for_each_rule(|rule| writer(bytes, rule))
             .map_err(Into::into);
     }
 
@@ -66,7 +73,9 @@ fn should_write_general_rule_set(
     format: OutputFormat,
 ) -> bool {
     match format {
-        OutputFormat::DomainSet => matches!(rule_set, RuleSetOutput::Domain(_)),
+        OutputFormat::DomainSet | OutputFormat::Adguard => {
+            matches!(rule_set, RuleSetOutput::Domain(_))
+        }
         OutputFormat::IpSet => matches!(rule_set, RuleSetOutput::Ipcidr(_)),
         OutputFormat::RuleSet => match behavior {
             BehaviorMode::Domain => matches!(rule_set, RuleSetOutput::Domain(_)),
