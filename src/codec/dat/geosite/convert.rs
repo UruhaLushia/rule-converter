@@ -74,9 +74,13 @@ pub(super) fn domain_from_mixed_rule(rule: &str) -> Result<Option<Domain>> {
         return Ok(None);
     };
     let item = match kind.to_ascii_uppercase().as_str() {
+        "DOMAIN" => Some(domain(DomainType::Full, value)),
+        "DOMAIN-SUFFIX" => Some(domain(
+            DomainType::RootDomain,
+            value.trim_start_matches('.'),
+        )),
         "DOMAIN-KEYWORD" => Some(domain(DomainType::Plain, value)),
         "DOMAIN-REGEX" => Some(domain(DomainType::Regex, value)),
-        "DOMAIN" | "DOMAIN-SUFFIX" => None,
         _ => None,
     };
     Ok(item)

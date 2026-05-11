@@ -1,7 +1,9 @@
+use std::collections::BTreeSet;
+
 use anyhow::{Result, bail};
 
 use crate::api::ConvertResult;
-use crate::codec::dat::proto::{GeoSite, write_message_field};
+use crate::codec::dat::proto::{Domain, GeoSite, write_message_field};
 use crate::codec::mihomo::mrs::RuleSetOutput;
 
 use super::convert::{domain_from_mixed_rule, domain_from_rule};
@@ -20,12 +22,12 @@ where
             bail!("geosite code is empty");
         }
         let mut domain = Vec::new();
+        let mut seen = BTreeSet::new();
         for output in result.outputs {
             if let RuleSetOutput::Domain(set) = output {
                 set.for_each_rule(|rule| {
                     if let Some(item) = domain_from_rule(rule) {
-                        domain.push(item);
-                        count += 1;
+                        push_domain_item(&mut domain, &mut seen, item);
                     }
                     Ok(())
                 })?;
@@ -33,11 +35,11 @@ where
         }
         for rule in result.mixed_rules.iter() {
             if let Some(item) = domain_from_mixed_rule(rule)? {
-                domain.push(item);
-                count += 1;
+                push_domain_item(&mut domain, &mut seen, item);
             }
         }
         if !domain.is_empty() {
+            count += domain.len();
             write_message_field(
                 &mut output,
                 1,
@@ -53,4 +55,10 @@ where
         bail!("geosite dat output does not contain any domain records");
     }
     Ok((count, output))
+}
+
+fn push_domain_item(domain: &mut Vec<Domain>, seen: &mut BTreeSet<(i32, String)>, item: Domain) {
+    if seen.insert((item.r#type, item.value.clone())) {
+        domain.push(item);
+    }
 }
