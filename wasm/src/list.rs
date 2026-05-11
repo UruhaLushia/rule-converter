@@ -1,10 +1,16 @@
 use rule_converter::{
     list_asn_mmdb_asns_from_bytes, list_geoip_dat_countries, list_geoip_mmdb_countries_from_bytes,
-    list_geosite_dat_codes, list_sing_geosite_codes,
+    list_geosite_dat_codes, list_input_indexes_from_bytes, list_sing_geosite_codes,
 };
 use wasm_bindgen::prelude::*;
 
 use crate::error::to_js_error;
+
+#[wasm_bindgen(js_name = listIndexes)]
+pub fn list_indexes_wasm(payload: &[u8]) -> Result<JsValue, JsValue> {
+    let sections = list_input_indexes_from_bytes(payload).map_err(to_js_error)?;
+    serde_wasm_bindgen::to_value(&sections).map_err(to_js_error)
+}
 
 #[wasm_bindgen(js_name = listGeoipCountries)]
 pub fn list_geoip_countries_wasm(payload: &[u8]) -> Result<JsValue, JsValue> {

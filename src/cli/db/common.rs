@@ -6,28 +6,18 @@ use anyhow::Result;
 use rule_converter::{
     Behavior, BehaviorMode, ConvertOptions, DbExportOutput, FileInput, InputBehaviorMode,
     OutputFile, OutputFormat, RuleSetOutput, RuleTarget, convert_file_inputs,
-    convert_rule_set_output, list_asn_mmdb_asns, list_geoip_mmdb_countries, write_outputs_as_owned,
+    convert_rule_set_output, list_input_indexes, write_outputs_as_owned,
 };
 
-use crate::cli::args::DbListArg;
 use crate::cli::report::report_result;
 
-pub(crate) fn run_db_list(target: DbListArg, input: &Path) -> Result<()> {
+pub(crate) fn run_db_list(input: &Path) -> Result<()> {
     let stdout = io::stdout();
     let mut writer = stdout.lock();
-    match target {
-        DbListArg::Geoip => {
-            for country in list_geoip_mmdb_countries(input)? {
-                if !write_db_list_item(&mut writer, country)? {
-                    return Ok(());
-                }
-            }
-        }
-        DbListArg::Asn => {
-            for asn in list_asn_mmdb_asns(input)? {
-                if !write_db_list_item(&mut writer, asn)? {
-                    return Ok(());
-                }
+    for section in list_input_indexes(input)? {
+        for item in section.items {
+            if !write_db_list_item(&mut writer, item)? {
+                return Ok(());
             }
         }
     }

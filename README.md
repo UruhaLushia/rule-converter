@@ -109,11 +109,12 @@ target/release/rule-converter match 10.2.3.4 --input-behavior classical rules.li
 target/release/rule-converter match github.com config.yaml
 ```
 
-查看 MMDB 中可用的国家代码或 ASN：
+查看数据库输入中可用的索引；默认自动识别 GeoIP、ASN、geoip.dat、geosite.dat 和 sing-geosite：
 
 ```bash
-target/release/rule-converter convert --list geoip country.mmdb
-target/release/rule-converter convert --list asn GeoLite2-ASN.mmdb
+target/release/rule-converter list country.mmdb
+target/release/rule-converter list geosite.dat
+target/release/rule-converter list GeoLite2-ASN.mmdb
 ```
 
 通用 mixed text 是一行一条、带明确规则类型的 ruleset：

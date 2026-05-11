@@ -11,7 +11,7 @@ use rule_converter::{
 };
 use serde::Serialize;
 
-use args::{Cli, Command, ConvertCli, DetectCli, MatchCli};
+use args::{Cli, Command, ConvertCli, DetectCli, ListCli, MatchCli};
 use db::{run_db_job, run_db_list};
 use report::report_result;
 
@@ -19,6 +19,7 @@ pub fn run() -> Result<()> {
     match Cli::parse().command {
         Command::Convert(cli) => run_convert_command(cli),
         Command::Detect(cli) => run_detect_command(cli),
+        Command::List(cli) => run_list_command(cli),
         Command::Match(cli) => run_match_command(cli),
     }
 }
@@ -54,14 +55,6 @@ struct DetectedFile {
 }
 
 fn run_convert_command(cli: ConvertCli) -> Result<()> {
-    if let Some(target) = cli.list {
-        if cli.config.is_some() || cli.paths.len() != 1 {
-            anyhow::bail!(
-                "--list needs exactly one MMDB path and cannot be combined with --config"
-            );
-        }
-        return run_db_list(target, &cli.paths[0]);
-    }
     let jobs = cli.into_jobs()?;
 
     for job in jobs {
@@ -69,6 +62,10 @@ fn run_convert_command(cli: ConvertCli) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn run_list_command(cli: ListCli) -> Result<()> {
+    run_db_list(&cli.path)
 }
 
 fn run_match_command(cli: MatchCli) -> Result<()> {

@@ -1,13 +1,33 @@
 use napi::bindgen_prelude::{Result, Uint8Array};
 use napi_derive::napi;
 use rule_converter::{
-    list_asn_mmdb_asns, list_asn_mmdb_asns_from_bytes,
+    InputIndexSection, list_asn_mmdb_asns, list_asn_mmdb_asns_from_bytes,
     list_geoip_dat_countries as list_geoip_dat_countries_from_bytes_core,
     list_geoip_mmdb_countries, list_geoip_mmdb_countries_from_bytes, list_geosite_dat_codes,
-    list_sing_geosite_codes,
+    list_input_indexes, list_input_indexes_from_bytes, list_sing_geosite_codes,
 };
 
 use crate::error::to_napi_error;
+
+#[napi(object)]
+pub struct IndexSection {
+    pub title: String,
+    pub items: Vec<String>,
+}
+
+#[napi]
+pub fn list_indexes(input: String) -> Result<Vec<IndexSection>> {
+    list_input_indexes(input)
+        .map(map_sections)
+        .map_err(to_napi_error)
+}
+
+#[napi]
+pub fn list_indexes_from_buffer(input: Uint8Array) -> Result<Vec<IndexSection>> {
+    list_input_indexes_from_bytes(input.as_ref())
+        .map(map_sections)
+        .map_err(to_napi_error)
+}
 
 #[napi]
 pub fn list_geoip_countries(input: String) -> Result<Vec<String>> {
@@ -53,4 +73,14 @@ pub fn list_asn_numbers(input: String) -> Result<Vec<u32>> {
 #[napi]
 pub fn list_asn_numbers_from_buffer(input: Uint8Array) -> Result<Vec<u32>> {
     list_asn_mmdb_asns_from_bytes(input.as_ref()).map_err(to_napi_error)
+}
+
+fn map_sections(sections: Vec<InputIndexSection>) -> Vec<IndexSection> {
+    sections
+        .into_iter()
+        .map(|section| IndexSection {
+            title: section.title,
+            items: section.items,
+        })
+        .collect()
 }

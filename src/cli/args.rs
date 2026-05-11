@@ -20,6 +20,8 @@ pub(super) enum Command {
     Convert(ConvertCli),
     /// Detect input file type without converting it.
     Detect(DetectCli),
+    /// List indexes contained in a DB input file.
+    List(ListCli),
     /// Match a domain or IP against rule files.
     Match(MatchCli),
 }
@@ -48,10 +50,12 @@ pub(super) struct ConvertCli {
     /// Output behavior. Omit to infer from the output target and format.
     #[arg(long, value_enum)]
     pub(super) output_behavior: Option<BehaviorArg>,
+}
 
-    /// List GeoIP country codes or ASN numbers from an MMDB file.
-    #[arg(long, value_enum)]
-    pub(super) list: Option<DbListArg>,
+#[derive(Debug, Parser)]
+pub(super) struct ListCli {
+    /// Input DB file to inspect.
+    pub(super) path: PathBuf,
 }
 
 #[derive(Debug, Parser)]
@@ -120,12 +124,6 @@ impl ConvertCli {
             },
         })])
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-pub(super) enum DbListArg {
-    Geoip,
-    Asn,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]

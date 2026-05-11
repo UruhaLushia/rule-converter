@@ -36,6 +36,14 @@ export interface AnyStringResult {
   skipped: Array<SkippedRule>
 }
 
+export declare function bufToBuf(input: Uint8Array, options?: AnyConvertOptions | undefined | null): AnyBufferResult
+
+export declare function bufToStr(input: Uint8Array, options?: AnyConvertOptions | undefined | null): AnyStringResult
+
+export declare function detectBuf(input: Uint8Array): DetectResult
+
+export declare function detectFile(input: string): DetectResult
+
 export interface DetectResult {
   kind: 'rules' | 'db'
   target: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
@@ -43,19 +51,16 @@ export interface DetectResult {
   behavior?: string
 }
 
-export declare function bufToBuf(input: Uint8Array, options?: AnyConvertOptions | undefined | null): AnyBufferResult
-
-export declare function bufToStr(input: Uint8Array, options?: AnyConvertOptions | undefined | null): AnyStringResult
+export declare function detectStr(input: string): DetectResult
 
 export declare function fileToBuf(input: string, options?: AnyConvertOptions | undefined | null): AnyBufferResult
 
 export declare function fileToStr(input: string, options?: AnyConvertOptions | undefined | null): AnyStringResult
 
-export declare function detectBuf(input: Uint8Array): DetectResult
-
-export declare function detectStr(input: string): DetectResult
-
-export declare function detectFile(input: string): DetectResult
+export interface IndexSection {
+  title: string
+  items: Array<string>
+}
 
 export declare function listAsnNumbers(input: string): Array<number>
 
@@ -73,19 +78,18 @@ export declare function listGeositeCodes(input: string): Array<string>
 
 export declare function listGeositeCodesFromBuffer(input: Uint8Array): Array<string>
 
+export declare function listIndexes(input: string): Array<IndexSection>
+
+export declare function listIndexesFromBuffer(input: Uint8Array): Array<IndexSection>
+
+export declare function matchBuf(input: Uint8Array, query: string, options?: MatchOptions | undefined | null): MatchResult
+
+export declare function matchFile(input: string, query: string, options?: MatchOptions | undefined | null): MatchResult
 
 export interface MatchOptions {
   inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
   inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'sing-geosite' | 'mmdb' | 'sing-db' | 'metadb'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
-}
-
-export interface MatchRule {
-  behavior: string
-  rule: string
-  source?: string
-  entry?: string
-  set?: string
 }
 
 export interface MatchResult {
@@ -95,6 +99,15 @@ export interface MatchResult {
   rules: Array<MatchRule>
 }
 
+export interface MatchRule {
+  behavior: string
+  rule: string
+  source?: string
+  set?: string
+}
+
+export declare function matchStr(input: string, query: string, options?: MatchOptions | undefined | null): MatchResult
+
 export interface SkippedRule {
   rule: string
   reason: string
@@ -103,9 +116,3 @@ export interface SkippedRule {
 export declare function strToBuf(input: string, options?: AnyConvertOptions | undefined | null): AnyBufferResult
 
 export declare function strToStr(input: string, options?: AnyConvertOptions | undefined | null): AnyStringResult
-
-export declare function matchBuf(input: Uint8Array, query: string, options?: MatchOptions | undefined | null): MatchResult
-
-export declare function matchStr(input: string, query: string, options?: MatchOptions | undefined | null): MatchResult
-
-export declare function matchFile(input: string, query: string, options?: MatchOptions | undefined | null): MatchResult
