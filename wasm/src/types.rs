@@ -35,6 +35,7 @@ pub(crate) struct BuildDbOptions {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct BuildDbEntry {
     pub key: String,
+    pub keys: Option<Vec<String>>,
     pub input_target: Option<String>,
     pub input_format: Option<String>,
     pub input_behavior: Option<String>,

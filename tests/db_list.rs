@@ -78,7 +78,7 @@ fn converts_geoip_dat_to_mmdb_and_filters_dat() {
     )
     .unwrap();
 
-    assert_eq!(list_geoip_dat_countries(&dat.bytes).unwrap(), ["CN", "US"]);
+    assert_eq!(list_geoip_dat_countries(&dat.bytes).unwrap(), ["cn", "us"]);
 
     let filtered_dat = convert_geoip_db_to_memory_filtered(
         &dat.bytes,
@@ -90,7 +90,7 @@ fn converts_geoip_dat_to_mmdb_and_filters_dat() {
     assert_eq!(filtered_dat.count, 1);
     assert_eq!(
         list_geoip_dat_countries(&filtered_dat.bytes).unwrap(),
-        ["CN"]
+        ["cn"]
     );
 
     let mmdb = convert_geoip_db_to_memory_filtered(

@@ -32,7 +32,7 @@ pub fn list_geoip_dat_countries(input: &[u8]) -> Result<Vec<String>> {
     scan::for_each_raw_geoip_entry(input, |entry| {
         let meta = scan::scan_geoip_entry_meta(entry)?;
         if !meta.reverse_match && !meta.country.is_empty() {
-            countries.push(meta.country);
+            countries.push(meta.country.to_ascii_lowercase());
         }
         Ok(())
     })?;
