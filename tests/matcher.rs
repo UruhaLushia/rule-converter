@@ -1,10 +1,33 @@
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use rule_converter::codec::mihomo::mrs::{IpCidrSetBuilder, RuleSetOutput};
 use rule_converter::{
     InputBehaviorMode, MatchInputFormat, MatchInputTarget, MatchOptions, MmdbFormat,
-    build_geosite_dat_to_memory, build_geosite_db_to_memory, match_file, match_payload,
+    build_asn_mmdb_from_cidrs, build_geosite_dat_to_memory, build_geosite_db_to_memory, match_file,
+    match_payload,
 };
+
+fn temp_dir(name: &str) -> std::path::PathBuf {
+    let path = std::env::temp_dir().join(format!(
+        "rule-converter-{name}-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&path).unwrap();
+    path
+}
+
+fn ip_set<const N: usize>(rules: [&str; N]) -> RuleSetOutput {
+    let mut builder = IpCidrSetBuilder::default();
+    for rule in rules {
+        builder.insert(rule).unwrap();
+    }
+    RuleSetOutput::Ipcidr(builder.finish().unwrap())
+}
 
 #[test]
 fn matches_domain_suffix_and_ip_cidr() {
@@ -138,6 +161,111 @@ fn matches_sing_geosite_payload_and_auto_detects_it() {
 
     let auto = match_payload(&db.bytes, "www.apple.com", MatchOptions::default()).unwrap();
     assert!(auto.matched);
+}
+
+#[test]
+fn matches_asn_mmdb_payload_with_asn_context() {
+    let dir = temp_dir("asn-match");
+    let path = dir.join("asn.mmdb");
+    build_asn_mmdb_from_cidrs([(13335, "1.1.1.0/24".to_string())], &path).unwrap();
+    let bytes = fs::read(path).unwrap();
+
+    let result = match_payload(
+        &bytes,
+        "1.1.1.1",
+        MatchOptions {
+            input_target: Some(MatchInputTarget::Asn),
+            input_format: Some(MatchInputFormat::Mmdb),
+            ..MatchOptions::default()
+        },
+    )
+    .unwrap();
+
+    assert!(result.matched);
+    assert!(result.rules.iter().any(|rule| {
+        rule.source.as_deref() == Some("asn") && rule.set.as_deref() == Some("as13335")
+    }));
+}
+
+#[test]
+fn matches_sing_geoip_db_payload_as_mmdb() {
+    let db = rule_converter::build_geoip_db_to_memory(
+        [("cn".to_string(), ip_set(["1.1.1.0/24"]))],
+        MmdbFormat::SingDb,
+    )
+    .unwrap();
+
+    let result = match_payload(
+        &db.bytes,
+        "1.1.1.1",
+        MatchOptions {
+            input_target: Some(MatchInputTarget::Geoip),
+            input_format: Some(MatchInputFormat::Mmdb),
+            ..MatchOptions::default()
+        },
+    )
+    .unwrap();
+
+    assert!(result.matched);
+    assert!(result.rules.iter().any(|rule| {
+        rule.rule == "1.1.1.0/24"
+            && rule.source.as_deref() == Some("geoip")
+            && rule.set.as_deref() == Some("cn")
+    }));
+}
+
+#[test]
+fn matches_meta_geoip_db_payload_with_country_context() {
+    let db = rule_converter::build_geoip_db_to_memory(
+        [("cn".to_string(), ip_set(["1.1.1.0/24"]))],
+        MmdbFormat::MetaDb,
+    )
+    .unwrap();
+
+    let result = match_payload(
+        &db.bytes,
+        "1.1.1.1",
+        MatchOptions {
+            input_target: Some(MatchInputTarget::Geoip),
+            input_format: Some(MatchInputFormat::Mmdb),
+            ..MatchOptions::default()
+        },
+    )
+    .unwrap();
+
+    assert!(result.matched);
+    assert!(result.rules.iter().any(|rule| {
+        rule.rule == "1.1.1.0/24"
+            && rule.source.as_deref() == Some("geoip")
+            && rule.set.as_deref() == Some("cn")
+    }));
+}
+
+#[test]
+fn matches_geoip_dat_payload_with_country_context() {
+    let db = rule_converter::build_geoip_db_to_memory(
+        [("cn".to_string(), ip_set(["1.1.1.0/24"]))],
+        MmdbFormat::Dat,
+    )
+    .unwrap();
+
+    let result = match_payload(
+        &db.bytes,
+        "1.1.1.1",
+        MatchOptions {
+            input_target: Some(MatchInputTarget::Geoip),
+            input_format: Some(MatchInputFormat::Dat),
+            ..MatchOptions::default()
+        },
+    )
+    .unwrap();
+
+    assert!(result.matched);
+    assert!(result.rules.iter().any(|rule| {
+        rule.rule == "1.1.1.0/24"
+            && rule.source.as_deref() == Some("geoip")
+            && rule.set.as_deref() == Some("cn")
+    }));
 }
 
 #[test]
