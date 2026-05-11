@@ -100,7 +100,6 @@ impl MatchState {
             behavior,
             rule,
             source: non_empty(source),
-            entry: non_empty_lowercase(entry),
             set: non_empty_lowercase(entry),
         });
     }
@@ -122,7 +121,6 @@ impl MatchState {
                     behavior: Behavior::Domain,
                     rule: domain.clone(),
                     source: non_empty(source),
-                    entry: non_empty_lowercase(entry),
                     set: non_empty_lowercase(entry),
                 });
             }
@@ -132,7 +130,6 @@ impl MatchState {
                         behavior: Behavior::Ipcidr,
                         rule,
                         source: non_empty(source),
-                        entry: non_empty_lowercase(entry),
                         set: non_empty_lowercase(entry),
                     });
                 }
