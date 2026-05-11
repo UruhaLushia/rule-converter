@@ -22,7 +22,7 @@ pub struct AnyConvertOptions {
     #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'")]
     pub input_target: Option<AnyTargetOption>,
     #[napi(
-        ts_type = "'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'"
+        ts_type = "'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'"
     )]
     pub input_format: Option<AnyFormatOption>,
     #[napi(ts_type = "'auto' | 'domain' | 'ip' | 'classical'")]
@@ -30,7 +30,7 @@ pub struct AnyConvertOptions {
     #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'")]
     pub output_target: Option<AnyTargetOption>,
     #[napi(
-        ts_type = "'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'"
+        ts_type = "'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'"
     )]
     pub output_format: Option<AnyFormatOption>,
     #[napi(ts_type = "'auto' | 'domain' | 'ip' | 'classical'")]

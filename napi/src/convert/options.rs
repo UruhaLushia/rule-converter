@@ -127,10 +127,10 @@ pub(super) fn validate_geosite_input_format(value: Option<&str>) -> Result<()> {
 
 pub(super) fn validate_geosite_output_format(value: Option<&str>) -> Result<()> {
     if let Some(format) = parse_db_format_value(value)?
-        && format != MmdbFormat::Dat
+        && !matches!(format, MmdbFormat::Dat | MmdbFormat::SingGeosite)
     {
         return Err(napi::Error::from_reason(
-            "geosite target only supports dat format",
+            "geosite target only supports dat or sing-geosite format",
         ));
     }
     Ok(())

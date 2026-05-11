@@ -222,7 +222,7 @@ target/release/rule-converter convert --config examples/config.yaml
 - `input.path`: 单个输入路径。
 - `input.inputs`: 多个输入项。每项可以直接写路径，也可以写 `{ path, target, format, behavior }`；数据库构建项使用 `{ country, path, target, format, behavior }` 或 `{ asn, path, target, format, behavior }`。
 - `input.target`: 可选，规则输入使用 `mihomo`、`general`、`egern`、`sing-box`；数据库输入使用 `geoip`、`geosite` 或 `asn`。
-- `input.format`: 可选，规则输入使用 `yaml`、`mrs`、`text`、`json`、`srs`；`domainset`、`ruleset`、`ipset` 作为输入格式时按 `text` 读取。数据库输入使用 `mmdb`、`sing-db`、`metadb`、`dat`，其中 `geosite` 只支持 `dat`，`asn` 只支持 `mmdb`。
+- `input.format`: 可选，规则输入使用 `yaml`、`mrs`、`text`、`json`、`srs`；`domainset`、`ruleset`、`ipset` 作为输入格式时按 `text` 读取。数据库输入使用 `mmdb`、`sing-db`、`metadb`、`dat`、`sing-geosite`，其中 `geosite` 支持 `dat` 和 `sing-geosite`，`asn` 只支持 `mmdb`。
 - `input.behavior`: 可选，`auto`、`domain`、`ip`、`classical`。
 
 - `output`: 单个输出项。
@@ -232,7 +232,7 @@ target/release/rule-converter convert --config examples/config.yaml
 - `output.country`: GeoIP 数据库导出国家代码或列表，例如 `country: cn` 或 `country: [cn, us]`，省略时导出全部。
 - `output.asn`: ASN 数据库导出 ASN 或列表，例如 `asn: 13335` 或 `asn: [13335, 15169]`，省略时导出全部。
 - `output.target`: 规则输出使用 `mihomo`、`general`、`egern`、`sing-box`；数据库输出使用 `geoip`、`geosite` 或 `asn`。
-- `output.format`: mihomo 使用 `mrs`、`text`、`yaml`；sing-box 使用 `srs`、`json`；egern 使用 `ruleset`；general 使用 `domainset`、`ruleset`、`ipset`；数据库使用 `mmdb`、`sing-db`、`metadb`、`dat`，其中 `geosite` 只支持 `dat`，`asn` 只支持 `mmdb`。
+- `output.format`: mihomo 使用 `mrs`、`text`、`yaml`；sing-box 使用 `srs`、`json`；egern 使用 `ruleset`；general 使用 `domainset`、`ruleset`、`ipset`；数据库使用 `mmdb`、`sing-db`、`metadb`、`dat`、`sing-geosite`，其中 `geosite` 支持 `dat` 和 `sing-geosite`，`asn` 只支持 `mmdb`。
 - `output.behavior`: 可选，`auto`、`domain`、`ip`、`classical`。`domainset`/`ipset` 不使用该项；mihomo MRS 的 `auto` 会跟随明确的输入类型。
 - `defaults`: 多任务配置的默认值。
 
@@ -304,7 +304,7 @@ jobs:
       format: mmdb
 ```
 
-导出数据库时，如果使用 `output.dir` 会按 `country` 或 `asn` 拆分文件；省略 `output.country` / `output.asn` 时必须使用 `output.dir` 并导出全部条目。`output.path` 只用于显式指定 `country` / `asn` 后合并这些指定条目；单独输出可写 `country: cn` 或 `asn: 13335`。数据库导出可以接普通规则输出的 `target` / `format` / `behavior`，例如 `general ipset` 或 `mihomo mrs`。DB 直转也可以带 `country` / `asn`，用于重新生成只包含指定条目的数据库。构建 GeoIP 数据库时使用 `input.inputs` 中的 `country` 作为国家代码，可写出 `mmdb`、`sing-db`、`metadb` 或 `dat`。构建 Geosite 数据库时使用 `input.inputs` 中的 `code` 作为站点代码，只支持 `dat`。构建 ASN 数据库时使用 `input.inputs` 中的 `asn`，只支持 `mmdb`。
+导出数据库时，如果使用 `output.dir` 会按 `country` 或 `asn` 拆分文件；省略 `output.country` / `output.asn` 时必须使用 `output.dir` 并导出全部条目。`output.path` 只用于显式指定 `country` / `asn` 后合并这些指定条目；单独输出可写 `country: cn` 或 `asn: 13335`。数据库导出可以接普通规则输出的 `target` / `format` / `behavior`，例如 `general ipset` 或 `mihomo mrs`。DB 直转也可以带 `country` / `asn`，用于重新生成只包含指定条目的数据库。构建 GeoIP 数据库时使用 `input.inputs` 中的 `country` 作为国家代码，可写出 `mmdb`、`sing-db`、`metadb` 或 `dat`。构建 Geosite 数据库时使用 `input.inputs` 中的 `code` 作为站点代码，可写出 `dat` 或 `sing-geosite`。构建 ASN 数据库时使用 `input.inputs` 中的 `asn`，只支持 `mmdb`。
 
 示例配置见 `examples/`：
 

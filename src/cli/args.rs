@@ -2,9 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
-use rule_converter::{
-    ConfigJob, ConvertOptions, FileInput, InputBehaviorMode, RuleConfigJob, load_config,
-};
+use rule_converter::{ConfigJob, ConvertOptions, FileInput, InputBehaviorMode, RuleConfigJob};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -82,7 +80,7 @@ impl ConvertCli {
             if !self.paths.is_empty() {
                 anyhow::bail!("--config cannot be combined with positional paths");
             }
-            return load_config(config);
+            return rule_converter::load_config(config);
         }
 
         if self.paths.len() < 2 {
@@ -248,6 +246,7 @@ pub(super) enum MatchFormatArg {
     Ruleset,
     Ipset,
     Dat,
+    SingGeosite,
     Mmdb,
     SingDb,
     Metadb,
@@ -265,6 +264,7 @@ impl From<MatchFormatArg> for rule_converter::MatchInputFormat {
             MatchFormatArg::Json => rule_converter::InputFormat::Json.into(),
             MatchFormatArg::Srs => rule_converter::InputFormat::Srs.into(),
             MatchFormatArg::Dat => rule_converter::MatchInputFormat::Dat,
+            MatchFormatArg::SingGeosite => rule_converter::MatchInputFormat::SingGeosite,
             MatchFormatArg::Mmdb | MatchFormatArg::SingDb | MatchFormatArg::Metadb => {
                 rule_converter::MatchInputFormat::Mmdb
             }

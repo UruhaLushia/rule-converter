@@ -112,7 +112,7 @@ console.log(route.matched, route.rules)
 - `listGeoipCountries(input)`: reads a GeoIP MMDB file path and returns sorted country codes.
 - `listGeoipCountriesFromBuffer(input)`: reads GeoIP MMDB bytes and returns sorted country codes.
 - `listGeoipDatCountries(input)` / `listGeoipDatCountriesFromBuffer(input)`: reads V2Ray `geoip.dat` and returns sorted country codes.
-- `listGeositeCodes(input)` / `listGeositeCodesFromBuffer(input)`: reads V2Ray `geosite.dat` and returns sorted site codes.
+- `listGeositeCodes(input)` / `listGeositeCodesFromBuffer(input)`: reads V2Ray `geosite.dat` or sing-geosite DB and returns sorted site codes.
 - `listAsnNumbers(input)`: reads an ASN MMDB file path and returns sorted ASN numbers.
 - `listAsnNumbersFromBuffer(input)`: reads ASN MMDB bytes and returns sorted ASN numbers.
 - `matchBuf(input, query, options?)` / `matchStr(input, query, options?)` / `matchFile(input, query, options?)`: matches a domain or IP against rules and returns `{ matched, query, kind, rules }`. Mihomo config input is supported for provider `path`, `file://`, and HTTP(S) `url`. HTTP providers are downloaded into memory for matching.
@@ -120,10 +120,10 @@ console.log(route.matched, route.rules)
 ```ts
 interface AnyConvertOptions {
   inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
-  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
   outputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
-  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'
+  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
   outputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
   countries?: string[]
   codes?: string[]
@@ -164,8 +164,8 @@ DB conversions use the same functions as rule conversions:
 - `inputTarget: 'geoip'`, `outputTarget: 'general' | 'mihomo' | 'egern' | 'sing-box'` exports GeoIP contents as rule sets.
 - `inputTarget: 'asn'`, `outputTarget: 'general' | 'mihomo' | 'egern' | 'sing-box'` exports ASN contents as rule sets.
 - `inputTarget: 'geoip'`, `outputTarget: 'geoip'` converts GeoIP DB bytes between `mmdb`, `sing-db`, `metadb`, and V2Ray `dat`.
-- `inputTarget: 'geosite'`, `outputTarget: 'general' | 'mihomo' | 'egern' | 'sing-box'` exports V2Ray `geosite.dat` as rule sets.
-- `inputTarget: 'geosite'`, `outputTarget: 'geosite'` filters or normalizes V2Ray `geosite.dat`; geosite DB only supports `dat`.
+- `inputTarget: 'geosite'`, `outputTarget: 'general' | 'mihomo' | 'egern' | 'sing-box'` exports V2Ray `geosite.dat` or sing-geosite DB as rule sets.
+- `inputTarget: 'geosite'`, `outputTarget: 'geosite'` converts and filters geosite DB between `dat` and `sing-geosite`.
 - `inputTarget: 'asn'`, `outputTarget: 'asn'` normalizes ASN MMDB bytes. ASN DB output only supports `mmdb`.
 - Rule input can build DB output with `outputTarget: 'geoip'` plus `country`, `outputTarget: 'geosite'` plus `code`, or `outputTarget: 'asn'` plus `asn`.
 

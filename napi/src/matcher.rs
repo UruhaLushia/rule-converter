@@ -14,7 +14,7 @@ pub struct MatchOptions {
     #[napi(ts_type = "'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'")]
     pub input_target: Option<AnyTargetOption>,
     #[napi(
-        ts_type = "'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'mmdb' | 'sing-db' | 'metadb'"
+        ts_type = "'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'sing-geosite' | 'mmdb' | 'sing-db' | 'metadb'"
     )]
     pub input_format: Option<AnyFormatOption>,
     #[napi(ts_type = "'auto' | 'domain' | 'ip' | 'classical'")]

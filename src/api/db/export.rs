@@ -26,6 +26,29 @@ pub fn export_geoip_db_to_memory(
         MmdbFormat::Mmdb | MmdbFormat::SingDb | MmdbFormat::MetaDb => {
             export_geoip_mmdb_to_memory(input, countries, split, target, format, behavior)
         }
+        MmdbFormat::SingGeosite => {
+            anyhow::bail!("geoip target does not support sing-geosite format")
+        }
+    }
+}
+
+pub fn export_geosite_db_to_memory(
+    input: impl AsRef<[u8]>,
+    input_format: MmdbFormat,
+    codes: &[String],
+    split: bool,
+    target: RuleTarget,
+    format: OutputFormat,
+    behavior: BehaviorMode,
+) -> Result<Vec<DbMemoryOutput>> {
+    match input_format {
+        MmdbFormat::Dat => {
+            export_geosite_dat_to_memory(input, codes, split, target, format, behavior)
+        }
+        MmdbFormat::SingGeosite => {
+            export_sing_geosite_to_memory(input, codes, split, target, format, behavior)
+        }
+        _ => anyhow::bail!("geosite target only supports dat or sing-geosite format"),
     }
 }
 
@@ -121,5 +144,35 @@ pub fn export_geosite_dat_to_memory(
     }
 
     let result = crate::codec::dat::collect_geosite_dat_rule_set(input, codes)?;
+    db_convert_result_to_memory("geosite", result, target, format, behavior)
+}
+
+fn export_sing_geosite_to_memory(
+    input: impl AsRef<[u8]>,
+    codes: &[String],
+    split: bool,
+    target: RuleTarget,
+    format: OutputFormat,
+    behavior: BehaviorMode,
+) -> Result<Vec<DbMemoryOutput>> {
+    let input = input.as_ref();
+    let behavior = normalize_db_output_behavior(target, format, behavior);
+    if split {
+        let sets = crate::codec::db::collect_sing_geosite_rule_sets(input, codes)?;
+        let mut outputs = Vec::new();
+        for set in sets {
+            let name = set.code.clone();
+            outputs.extend(db_convert_result_to_memory(
+                name,
+                set.into_result(),
+                target,
+                format,
+                behavior,
+            )?);
+        }
+        return Ok(outputs);
+    }
+
+    let result = crate::codec::db::collect_sing_geosite_rule_set(input, codes)?;
     db_convert_result_to_memory("geosite", result, target, format, behavior)
 }

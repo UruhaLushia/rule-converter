@@ -5,8 +5,9 @@ use rule_converter::{
     BehaviorMode, DbConfigJob, DbTarget, OutputFormat, RuleTarget, collect_asn_mmdb_rule_set,
     collect_asn_mmdb_rule_sets, collect_geoip_dat_rule_set, collect_geoip_dat_rule_sets,
     collect_geoip_mmdb_rule_set, collect_geoip_mmdb_rule_sets, collect_geosite_dat_rule_set,
-    collect_geosite_dat_rule_sets, export_asn_mmdb_ipset_to_path, export_asn_mmdb_mrs_to_path,
-    export_geoip_dat_ipset_to_dir, export_geoip_mmdb_ipset_to_path, export_geoip_mmdb_mrs_to_path,
+    collect_geosite_dat_rule_sets, collect_sing_geosite_rule_set, collect_sing_geosite_rule_sets,
+    export_asn_mmdb_ipset_to_path, export_asn_mmdb_mrs_to_path, export_geoip_dat_ipset_to_dir,
+    export_geoip_mmdb_ipset_to_path, export_geoip_mmdb_mrs_to_path,
     export_geosite_dat_general_ruleset_to_dir, export_geosite_dat_general_ruleset_to_path,
     write_outputs_as_owned,
 };
@@ -100,7 +101,12 @@ pub(super) fn run_export_job(job: DbConfigJob) -> Result<()> {
             }
             let raw = fs::read(input)?;
             if output.split {
-                for set in collect_geosite_dat_rule_sets(&raw, &countries)? {
+                let sets = if is_dat(format) {
+                    collect_geosite_dat_rule_sets(&raw, &countries)?
+                } else {
+                    collect_sing_geosite_rule_sets(&raw, &countries)?
+                };
+                for set in sets {
                     let base = db_export_base(&output, &set.code);
                     let (files, skipped) = write_outputs_as_owned(
                         set.into_result(),
@@ -111,7 +117,11 @@ pub(super) fn run_export_job(job: DbConfigJob) -> Result<()> {
                     report_result(files, skipped)?;
                 }
             } else {
-                let result = collect_geosite_dat_rule_set(&raw, &countries)?;
+                let result = if is_dat(format) {
+                    collect_geosite_dat_rule_set(&raw, &countries)?
+                } else {
+                    collect_sing_geosite_rule_set(&raw, &countries)?
+                };
                 let (files, skipped) =
                     write_outputs_as_owned(result, &output.base, output.target, output.format)?;
                 report_result(files, skipped)?;

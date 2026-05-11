@@ -6,11 +6,12 @@ use rule_converter::codec::mihomo::mrs::IpCidrSetBuilder;
 use rule_converter::{
     BehaviorMode, ConvertResult, MmdbFormat, OutputFormat, RuleSetOutput, RuleTarget,
     build_asn_mmdb_from_cidrs, build_geoip_db_to_memory, build_geoip_mmdb_from_cidrs,
-    build_geosite_dat_to_memory, convert_asn_mmdb_file_to_memory_filtered,
-    convert_geoip_db_to_memory_filtered, convert_geoip_mmdb_file_to_memory_filtered,
+    build_geosite_dat_to_memory, build_geosite_db_to_memory,
+    convert_asn_mmdb_file_to_memory_filtered, convert_geoip_db_to_memory_filtered,
+    convert_geoip_mmdb_file_to_memory_filtered, convert_geosite_db_to_memory_filtered,
     export_geosite_dat_general_ruleset_to_writer, export_geosite_dat_to_memory, list_asn_mmdb_asns,
     list_asn_mmdb_asns_from_bytes, list_geoip_dat_countries, list_geoip_mmdb_countries,
-    list_geoip_mmdb_countries_from_bytes, list_geosite_dat_codes,
+    list_geoip_mmdb_countries_from_bytes, list_geosite_dat_codes, list_sing_geosite_codes,
 };
 
 #[test]
@@ -153,6 +154,51 @@ fn converts_geosite_dat_to_rules_and_filters_dat() {
     assert_eq!(count, 2);
     assert!(streamed.contains("DOMAIN-SUFFIX,example.cn"));
     assert!(streamed.contains("DOMAIN-KEYWORD,example"));
+}
+
+#[test]
+fn converts_sing_geosite_to_rules_and_dat() {
+    let sing = build_geosite_db_to_memory(
+        [
+            (
+                "cn".to_string(),
+                domain_result(["+.example.cn"], ["DOMAIN-KEYWORD,example"]),
+            ),
+            (
+                "apple".to_string(),
+                domain_result(["apple.com"], ["DOMAIN-SUFFIX,icloud.com"]),
+            ),
+        ],
+        MmdbFormat::SingGeosite,
+    )
+    .unwrap();
+
+    assert_eq!(sing.format, MmdbFormat::SingGeosite);
+    assert_eq!(
+        list_sing_geosite_codes(&sing.bytes).unwrap(),
+        ["apple", "cn"]
+    );
+    let detected = rule_converter::detect_payload_type(&sing.bytes).unwrap();
+    assert_eq!(detected.target, "geosite");
+    assert_eq!(detected.format, "sing-geosite");
+
+    let dat = convert_geosite_db_to_memory_filtered(
+        &sing.bytes,
+        MmdbFormat::SingGeosite,
+        &["apple".to_string()],
+        MmdbFormat::Dat,
+    )
+    .unwrap();
+    assert_eq!(list_geosite_dat_codes(&dat.bytes).unwrap(), ["APPLE"]);
+
+    let filtered = convert_geosite_db_to_memory_filtered(
+        &sing.bytes,
+        MmdbFormat::SingGeosite,
+        &["cn".to_string()],
+        MmdbFormat::SingGeosite,
+    )
+    .unwrap();
+    assert_eq!(list_sing_geosite_codes(&filtered.bytes).unwrap(), ["cn"]);
 }
 
 #[test]

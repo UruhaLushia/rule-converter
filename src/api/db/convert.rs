@@ -3,6 +3,7 @@ use std::path::Path;
 
 use super::build::{
     build_asn_mmdb_to_memory, build_geoip_dat_to_memory, build_geoip_mmdb_to_memory,
+    build_geosite_db_to_memory,
 };
 use super::types::DbBytesOutput;
 use crate::codec::db::MmdbFormat;
@@ -14,6 +15,9 @@ pub fn convert_geoip_db_to_memory_filtered(
     output_format: MmdbFormat,
 ) -> Result<DbBytesOutput> {
     match (input_format, output_format) {
+        (MmdbFormat::SingGeosite, _) | (_, MmdbFormat::SingGeosite) => {
+            anyhow::bail!("unsupported geoip DB format conversion")
+        }
         (MmdbFormat::Dat, MmdbFormat::Dat) => {
             let (count, bytes) = crate::codec::dat::filter_geoip_dat(input.as_ref(), countries)?;
             Ok(DbBytesOutput {
@@ -47,12 +51,51 @@ pub fn convert_geosite_dat_to_memory_filtered(
     input: impl AsRef<[u8]>,
     codes: &[String],
 ) -> Result<DbBytesOutput> {
-    let (count, bytes) = crate::codec::dat::filter_geosite_dat(input.as_ref(), codes)?;
-    Ok(DbBytesOutput {
-        format: MmdbFormat::Dat,
-        count,
-        bytes,
-    })
+    convert_geosite_db_to_memory_filtered(input, MmdbFormat::Dat, codes, MmdbFormat::Dat)
+}
+
+pub fn convert_geosite_db_to_memory_filtered(
+    input: impl AsRef<[u8]>,
+    input_format: MmdbFormat,
+    codes: &[String],
+    output_format: MmdbFormat,
+) -> Result<DbBytesOutput> {
+    let input = input.as_ref();
+    match (input_format, output_format) {
+        (MmdbFormat::Dat, MmdbFormat::Dat) => {
+            let (count, bytes) = crate::codec::dat::filter_geosite_dat(input, codes)?;
+            Ok(DbBytesOutput {
+                format: MmdbFormat::Dat,
+                count,
+                bytes,
+            })
+        }
+        (MmdbFormat::SingGeosite, MmdbFormat::SingGeosite) => {
+            let (count, bytes) = crate::codec::db::filter_sing_geosite(input, codes)?;
+            Ok(DbBytesOutput {
+                format: MmdbFormat::SingGeosite,
+                count,
+                bytes,
+            })
+        }
+        (MmdbFormat::Dat, MmdbFormat::SingGeosite) => {
+            let sets = crate::codec::dat::collect_geosite_dat_rule_sets(input, codes)?;
+            build_geosite_db_to_memory(
+                sets.into_iter()
+                    .map(|set| (set.code.clone(), set.into_result())),
+                output_format,
+            )
+        }
+        (MmdbFormat::SingGeosite, MmdbFormat::Dat) => {
+            let sets = crate::codec::db::collect_sing_geosite_rule_sets(input, codes)?;
+            build_geosite_db_to_memory(
+                sets.into_iter()
+                    .map(|set| (set.code.clone(), set.into_result())),
+                output_format,
+            )
+        }
+        _ => anyhow::bail!("geosite target only supports dat or sing-geosite format"),
+    }
 }
 
 pub fn convert_geoip_mmdb_to_memory(

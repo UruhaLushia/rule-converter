@@ -2,6 +2,7 @@ mod asn;
 mod common;
 mod country;
 mod format;
+mod geosite;
 mod sing;
 
 pub use asn::{
@@ -28,3 +29,7 @@ pub use country::{
     list_geoip_mmdb_countries, list_geoip_mmdb_countries_from_bytes,
 };
 pub use format::MmdbFormat;
+pub use geosite::{
+    build_sing_geosite_from_rule_sets, collect_sing_geosite_rule_set,
+    collect_sing_geosite_rule_sets, filter_sing_geosite, list_sing_geosite_codes,
+};

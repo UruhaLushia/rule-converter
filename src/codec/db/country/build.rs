@@ -53,7 +53,9 @@ where
                         MmdbFormat::SingDb | MmdbFormat::MetaDb => {
                             db.insert_value(country.as_str())?
                         }
-                        MmdbFormat::Dat => unreachable!("dat is handled by codec::dat"),
+                        MmdbFormat::Dat | MmdbFormat::SingGeosite => {
+                            unreachable!("handled by DB dispatch")
+                        }
                     };
                     values.insert(country.clone(), data_ref);
                     data_ref
@@ -124,7 +126,9 @@ where
                         country: CountryCodeValue { iso_code: &country },
                     })?,
                     MmdbFormat::SingDb | MmdbFormat::MetaDb => db.insert_value(country.as_str())?,
-                    MmdbFormat::Dat => unreachable!("dat is handled by codec::dat"),
+                    MmdbFormat::Dat | MmdbFormat::SingGeosite => {
+                        unreachable!("handled by DB dispatch")
+                    }
                 };
                 values.insert(country.clone(), data_ref);
                 data_ref
@@ -177,7 +181,9 @@ where
                         country: CountryCodeValue { iso_code: &country },
                     })?,
                     MmdbFormat::SingDb | MmdbFormat::MetaDb => db.insert_value(country.as_str())?,
-                    MmdbFormat::Dat => unreachable!("dat is handled by codec::dat"),
+                    MmdbFormat::Dat | MmdbFormat::SingGeosite => {
+                        unreachable!("handled by DB dispatch")
+                    }
                 };
                 values.insert(country.clone(), data_ref);
                 data_ref

@@ -90,7 +90,7 @@ pub fn collect_geosite_dat_rule_set(input: &[u8], codes: &[String]) -> Result<Co
     })
 }
 
-fn io_error_from_anyhow(err: anyhow::Error) -> std::io::Error {
+pub(super) fn io_error_from_anyhow(err: anyhow::Error) -> std::io::Error {
     std::io::Error::other(err.to_string())
 }
 

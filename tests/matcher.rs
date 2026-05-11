@@ -2,8 +2,8 @@ use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rule_converter::{
-    InputBehaviorMode, MatchInputFormat, MatchInputTarget, MatchOptions,
-    build_geosite_dat_to_memory, match_file, match_payload,
+    InputBehaviorMode, MatchInputFormat, MatchInputTarget, MatchOptions, MmdbFormat,
+    build_geosite_dat_to_memory, build_geosite_db_to_memory, match_file, match_payload,
 };
 
 #[test]
@@ -99,6 +99,46 @@ fn matches_geosite_dat_payload_and_auto_detects_it() {
     }));
 
     let auto = match_payload(&db.bytes, "static-ads.example.org", MatchOptions::default()).unwrap();
+    assert!(auto.matched);
+}
+
+#[test]
+fn matches_sing_geosite_payload_and_auto_detects_it() {
+    let db = build_geosite_db_to_memory(
+        [(
+            "apple".to_string(),
+            rule_converter::convert_payload(
+                b"DOMAIN-SUFFIX,apple.com\n",
+                rule_converter::ConvertOptions {
+                    input_behavior: InputBehaviorMode::Classical,
+                    output_target: rule_converter::RuleTarget::General,
+                    output_format: rule_converter::OutputFormat::RuleSet,
+                    output_behavior: rule_converter::BehaviorMode::Classical,
+                    ..rule_converter::ConvertOptions::default()
+                },
+            )
+            .unwrap(),
+        )],
+        MmdbFormat::SingGeosite,
+    )
+    .unwrap();
+
+    let explicit = match_payload(
+        &db.bytes,
+        "www.apple.com",
+        MatchOptions {
+            input_target: Some(MatchInputTarget::Geosite),
+            input_format: Some(MatchInputFormat::SingGeosite),
+            ..MatchOptions::default()
+        },
+    )
+    .unwrap();
+    assert!(explicit.matched);
+    assert!(explicit.rules.iter().any(|rule| {
+        rule.source.as_deref() == Some("geosite") && rule.entry.as_deref() == Some("apple")
+    }));
+
+    let auto = match_payload(&db.bytes, "www.apple.com", MatchOptions::default()).unwrap();
     assert!(auto.matched);
 }
 

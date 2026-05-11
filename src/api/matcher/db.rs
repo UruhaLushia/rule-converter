@@ -57,7 +57,10 @@ pub(super) fn match_db_file(
 fn should_read_file_for_db_detection(options: MatchOptions) -> bool {
     explicit_db_input_kind(options).is_some()
         || (options.input_target.is_none()
-            && matches!(options.input_format, None | Some(MatchInputFormat::Dat)))
+            && matches!(
+                options.input_format,
+                None | Some(MatchInputFormat::Dat | MatchInputFormat::SingGeosite)
+            ))
 }
 
 fn detect_db_input(payload: &[u8], options: MatchOptions) -> Option<MatchInputTarget> {
@@ -65,13 +68,28 @@ fn detect_db_input(payload: &[u8], options: MatchOptions) -> Option<MatchInputTa
         return Some(kind);
     }
     if options.input_target.is_none()
-        && matches!(options.input_format, None | Some(MatchInputFormat::Dat))
+        && matches!(
+            options.input_format,
+            None | Some(MatchInputFormat::Dat | MatchInputFormat::SingGeosite)
+        )
     {
-        return match detect_dat_kind(payload) {
-            Some(DatKind::Geoip) => Some(MatchInputTarget::Geoip),
-            Some(DatKind::Geosite) => Some(MatchInputTarget::Geosite),
-            None => None,
-        };
+        if matches!(options.input_format, None | Some(MatchInputFormat::Dat))
+            && let Some(kind) = match detect_dat_kind(payload) {
+                Some(DatKind::Geoip) => Some(MatchInputTarget::Geoip),
+                Some(DatKind::Geosite) => Some(MatchInputTarget::Geosite),
+                None => None,
+            }
+        {
+            return Some(kind);
+        }
+        if matches!(
+            options.input_format,
+            None | Some(MatchInputFormat::SingGeosite)
+        ) && crate::codec::db::list_sing_geosite_codes(payload)
+            .is_ok_and(|codes| !codes.is_empty())
+        {
+            return Some(MatchInputTarget::Geosite);
+        }
     }
     None
 }
@@ -93,7 +111,7 @@ fn push_db_payload(
     let rule_set = match kind {
         MatchInputTarget::Geoip => crate::codec::dat::collect_geoip_dat_rule_set(payload, &[])?,
         MatchInputTarget::Geosite => {
-            return push_geosite_dat_payload(payload, state);
+            return push_geosite_payload(payload, state);
         }
         MatchInputTarget::Asn => {
             crate::codec::db::collect_asn_mmdb_rule_set_from_bytes(payload, &[])?
@@ -103,8 +121,9 @@ fn push_db_payload(
     Ok(state.push_mrs_rule_set(&rule_set))
 }
 
-fn push_geosite_dat_payload(payload: &[u8], state: &mut MatchState) -> Result<usize> {
-    let sets = crate::codec::dat::collect_geosite_dat_rule_sets(payload, &[])?;
+fn push_geosite_payload(payload: &[u8], state: &mut MatchState) -> Result<usize> {
+    let sets = crate::codec::dat::collect_geosite_dat_rule_sets(payload, &[])
+        .or_else(|_| crate::codec::db::collect_sing_geosite_rule_sets(payload, &[]))?;
     let mut total = 0usize;
     for set in sets {
         total += push_geosite_dat_set(set, state)?;

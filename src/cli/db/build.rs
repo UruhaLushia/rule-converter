@@ -2,7 +2,7 @@ use anyhow::Result;
 use rule_converter::{
     BehaviorMode, ConvertOptions, DbConfigJob, DbInputPath, DbTarget, InputBehaviorMode,
     OutputFormat, RuleTarget, build_asn_mmdb_from_rule_sets, build_geoip_dat_from_rule_sets,
-    build_geoip_mmdb_from_rule_sets, build_geosite_dat_from_rule_sets, convert_file_inputs,
+    build_geoip_mmdb_from_rule_sets, build_geosite_db_to_memory, convert_file_inputs,
 };
 
 use super::common::{collect_ip_rule_set, is_dat, write_db_bytes_output};
@@ -57,8 +57,8 @@ pub(super) fn run_build_job(job: DbConfigJob) -> Result<()> {
                 )?;
                 entries.push((country, result));
             }
-            let (count, bytes) = build_geosite_dat_from_rule_sets(entries)?;
-            write_db_bytes_output(&output, count, bytes, "geosite", format)?;
+            let db = build_geosite_db_to_memory(entries, format)?;
+            write_db_bytes_output(&output, db.count, db.bytes, "geosite", format)?;
         }
         DbTarget::Asn => {
             let mut entries = Vec::new();

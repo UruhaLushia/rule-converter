@@ -1,7 +1,7 @@
 use rule_converter::{
     BehaviorMode, ConvertOptions as CoreConvertOptions, InputBehaviorMode, InputFormat, MmdbFormat,
     OutputFormat, RuleSetOutput, RuleTarget, build_asn_mmdb_to_memory, build_geoip_db_to_memory,
-    build_geosite_dat_to_memory, convert_payload, default_output_behavior,
+    build_geosite_db_to_memory, convert_payload, default_output_behavior,
     write_outputs_as_to_memory_owned,
 };
 use wasm_bindgen::prelude::*;
@@ -95,15 +95,18 @@ pub(super) fn convert_rule_payload_any_to_js(
             let code = options
                 .code
                 .or(options.country)
-                .ok_or_else(|| to_js_error("geosite dat output needs code"))?;
+                .ok_or_else(|| to_js_error("geosite DB output needs code"))?;
             validate_geosite_db_format(options.output_format.as_deref())?;
+            let output_format = parse_optional_db_format(options.output_format.as_deref())?
+                .unwrap_or(MmdbFormat::Dat);
             let result = convert_rule_payload_to_classical(
                 payload,
                 input_target.map(|target| target.as_str().to_string()),
                 options.input_format,
                 options.input_behavior,
             )?;
-            let output = build_geosite_dat_to_memory([(code, result)]).map_err(to_js_error)?;
+            let output =
+                build_geosite_db_to_memory([(code, result)], output_format).map_err(to_js_error)?;
             any_db_to_js(output)
         }
         AnyTarget::Asn => {

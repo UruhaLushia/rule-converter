@@ -4,7 +4,7 @@ use anyhow::Result;
 use rule_converter::{
     DbConfigJob, DbTarget, build_asn_mmdb_from_rule_sets, collect_asn_mmdb_rule_sets,
     convert_asn_mmdb, convert_geoip_db_to_memory_filtered, convert_geoip_mmdb_filtered,
-    filter_geoip_dat_to_path, filter_geosite_dat_to_path,
+    convert_geosite_db_to_memory_filtered, filter_geoip_dat_to_path, filter_geosite_dat_to_path,
 };
 
 use super::common::{is_dat, write_db_bytes_output};
@@ -52,9 +52,26 @@ pub(super) fn run_convert_job(job: DbConfigJob) -> Result<()> {
             );
         }
         DbTarget::Geosite => {
-            let count = filter_geosite_dat_to_path(input, &output, &countries)?;
+            if is_dat(input_format) && is_dat(output_format) {
+                let count = filter_geosite_dat_to_path(input, &output, &countries)?;
+                eprintln!(
+                    "wrote {count} records to {} (geosite {})",
+                    output.display(),
+                    output_format.as_str()
+                );
+                return Ok(());
+            }
+            let raw = fs::read(input)?;
+            let db = convert_geosite_db_to_memory_filtered(
+                raw,
+                input_format,
+                &countries,
+                output_format,
+            )?;
+            write_db_bytes_output(&output, db.count, db.bytes, "geosite", output_format)?;
             eprintln!(
-                "wrote {count} records to {} (geosite {})",
+                "wrote {} records to {} (geosite {})",
+                db.count,
                 output.display(),
                 output_format.as_str()
             );

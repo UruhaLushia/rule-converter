@@ -9,10 +9,10 @@ export interface AnyBufferResult {
 
 export interface AnyConvertOptions {
   inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
-  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
   outputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
-  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat'
+  outputFormat?: 'mrs' | 'text' | 'yaml' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'mmdb' | 'sing-db' | 'metadb' | 'dat' | 'sing-geosite'
   outputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
   countries?: Array<string>
   codes?: Array<string>
@@ -76,7 +76,7 @@ export declare function listGeositeCodesFromBuffer(input: Uint8Array): Array<str
 
 export interface MatchOptions {
   inputTarget?: 'mihomo' | 'general' | 'egern' | 'sing-box' | 'geoip' | 'geosite' | 'asn'
-  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'mmdb' | 'sing-db' | 'metadb'
+  inputFormat?: 'yaml' | 'mrs' | 'text' | 'json' | 'srs' | 'domainset' | 'ruleset' | 'ipset' | 'dat' | 'sing-geosite' | 'mmdb' | 'sing-db' | 'metadb'
   inputBehavior?: 'auto' | 'domain' | 'ip' | 'classical'
 }
 

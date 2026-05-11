@@ -34,6 +34,7 @@ impl From<RuleTarget> for MatchInputTarget {
 pub enum MatchInputFormat {
     Rule(Option<InputFormat>),
     Dat,
+    SingGeosite,
     Mmdb,
 }
 
@@ -41,6 +42,7 @@ impl MatchInputFormat {
     pub fn parse_arg(arg: &str) -> Result<Self> {
         match arg {
             "dat" => Ok(Self::Dat),
+            "sing-geosite" | "sing-geosite-db" | "geosite-db" => Ok(Self::SingGeosite),
             "mmdb" | "sing-db" | "metadb" => Ok(Self::Mmdb),
             value => InputFormat::parse_arg(value).map(|format| Self::Rule(Some(format))),
         }

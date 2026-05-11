@@ -72,9 +72,10 @@ fn parse_db_format(format: Option<&str>) -> Result<MmdbFormat> {
 
 fn validate_db_format(target: DbTarget, format: MmdbFormat) -> Result<()> {
     match target {
-        DbTarget::Geoip => Ok(()),
-        DbTarget::Geosite if format == MmdbFormat::Dat => Ok(()),
-        DbTarget::Geosite => bail!("geosite target only supports dat format"),
+        DbTarget::Geoip if format != MmdbFormat::SingGeosite => Ok(()),
+        DbTarget::Geoip => bail!("geoip target does not support sing-geosite format"),
+        DbTarget::Geosite if matches!(format, MmdbFormat::Dat | MmdbFormat::SingGeosite) => Ok(()),
+        DbTarget::Geosite => bail!("geosite target only supports dat or sing-geosite format"),
         DbTarget::Asn if format == MmdbFormat::Mmdb => Ok(()),
         DbTarget::Asn => bail!("ASN target only supports mmdb format"),
     }

@@ -38,10 +38,17 @@ pub fn detect_payload_target(payload: impl AsRef<[u8]>) -> Result<DetectTarget> 
 }
 
 fn detect_dat_payload(payload: &[u8]) -> Option<DetectResult> {
-    match detect_dat_kind(payload)? {
-        DatKind::Geoip => Some(db_detect_result("geoip", "dat")),
-        DatKind::Geosite => Some(db_detect_result("geosite", "dat")),
+    if let Some(result) = match detect_dat_kind(payload) {
+        Some(DatKind::Geoip) => Some(db_detect_result("geoip", "dat")),
+        Some(DatKind::Geosite) => Some(db_detect_result("geosite", "dat")),
+        None => None,
+    } {
+        return Some(result);
     }
+    if crate::codec::db::list_sing_geosite_codes(payload).is_ok_and(|codes| !codes.is_empty()) {
+        return Some(db_detect_result("geosite", "sing-geosite"));
+    }
+    None
 }
 
 fn detect_mmdb_payload(payload: &[u8]) -> Option<DetectResult> {

@@ -13,6 +13,9 @@ where
         MmdbFormat::Mmdb | MmdbFormat::SingDb | MmdbFormat::MetaDb => {
             build_geoip_mmdb_to_memory(entries, output_format)
         }
+        MmdbFormat::SingGeosite => {
+            anyhow::bail!("geoip target does not support sing-geosite format")
+        }
     }
 }
 
@@ -35,6 +38,29 @@ where
     let (count, bytes) = crate::codec::dat::build_geosite_dat_from_rule_sets(entries)?;
     Ok(DbBytesOutput {
         format: MmdbFormat::Dat,
+        count,
+        bytes,
+    })
+}
+
+pub fn build_geosite_db_to_memory<I>(entries: I, output_format: MmdbFormat) -> Result<DbBytesOutput>
+where
+    I: IntoIterator<Item = (String, ConvertResult)>,
+{
+    match output_format {
+        MmdbFormat::Dat => build_geosite_dat_to_memory(entries),
+        MmdbFormat::SingGeosite => build_sing_geosite_to_memory(entries),
+        _ => anyhow::bail!("geosite target only supports dat or sing-geosite format"),
+    }
+}
+
+pub fn build_sing_geosite_to_memory<I>(entries: I) -> Result<DbBytesOutput>
+where
+    I: IntoIterator<Item = (String, ConvertResult)>,
+{
+    let (count, bytes) = crate::codec::db::build_sing_geosite_from_rule_sets(entries)?;
+    Ok(DbBytesOutput {
+        format: MmdbFormat::SingGeosite,
         count,
         bytes,
     })

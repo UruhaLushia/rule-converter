@@ -65,9 +65,11 @@ pub(super) fn validate_asn_db_format(value: Option<&str>) -> Result<(), JsValue>
 
 pub(super) fn validate_geosite_db_format(value: Option<&str>) -> Result<(), JsValue> {
     if let Some(format) = parse_optional_db_format(value)?
-        && format != MmdbFormat::Dat
+        && !matches!(format, MmdbFormat::Dat | MmdbFormat::SingGeosite)
     {
-        return Err(to_js_error("geosite target only supports dat format"));
+        return Err(to_js_error(
+            "geosite target only supports dat or sing-geosite format",
+        ));
     }
     Ok(())
 }

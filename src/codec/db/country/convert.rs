@@ -101,7 +101,9 @@ pub(super) fn convert_geoip_mmdb_reader<S: AsRef<[u8]>>(
                                 country: CountryCodeValue { iso_code: &country },
                             })?,
                             MmdbFormat::SingDb => db.insert_value(country.as_str())?,
-                            MmdbFormat::MetaDb | MmdbFormat::Dat => unreachable!(),
+                            MmdbFormat::MetaDb | MmdbFormat::Dat | MmdbFormat::SingGeosite => {
+                                unreachable!()
+                            }
                         };
                         values.insert(country, data_ref);
                         data_ref
@@ -115,7 +117,7 @@ pub(super) fn convert_geoip_mmdb_reader<S: AsRef<[u8]>>(
                 count += 1;
             }
         }
-        MmdbFormat::Dat => unreachable!("dat is handled by codec::dat"),
+        MmdbFormat::Dat | MmdbFormat::SingGeosite => unreachable!("handled by DB dispatch"),
         MmdbFormat::MetaDb => {
             let mut values = HashMap::new();
             for item in reader.networks(WithinOptions::default())? {

@@ -2,7 +2,7 @@ use napi::bindgen_prelude::Result;
 use rule_converter::{
     BehaviorMode, ConvertOptions as CoreConvertOptions, FileInput as CoreFileInput,
     InputBehaviorMode, MmdbFormat, OutputFormat, RuleSetOutput, RuleTarget,
-    build_asn_mmdb_to_memory, build_geoip_db_to_memory, build_geosite_dat_to_memory,
+    build_asn_mmdb_to_memory, build_geoip_db_to_memory, build_geosite_db_to_memory,
     convert_file_inputs, convert_payload, default_output_behavior,
     write_outputs_as_to_memory_owned,
 };
@@ -68,15 +68,18 @@ pub(super) fn convert_rule_payload_any_to_buffer(
             let code = options
                 .code
                 .or(options.country)
-                .ok_or_else(|| napi::Error::from_reason("geosite dat output needs code"))?;
+                .ok_or_else(|| napi::Error::from_reason("geosite DB output needs code"))?;
             validate_geosite_output_format(options.output_format.as_deref())?;
+            let output_format =
+                parse_db_format_value(options.output_format.as_deref())?.unwrap_or(MmdbFormat::Dat);
             let result = convert_rule_payload_to_classical(
                 payload,
                 input_target.map(|target| target.as_str().to_string()),
                 options.input_format,
                 options.input_behavior,
             )?;
-            let output = build_geosite_dat_to_memory([(code, result)]).map_err(to_napi_error)?;
+            let output = build_geosite_db_to_memory([(code, result)], output_format)
+                .map_err(to_napi_error)?;
             Ok(any_db_result(output))
         }
         AnyTarget::Asn => {
@@ -152,15 +155,18 @@ pub(super) fn convert_rule_file_any_to_buffer(
             let code = options
                 .code
                 .or(options.country)
-                .ok_or_else(|| napi::Error::from_reason("geosite dat output needs code"))?;
+                .ok_or_else(|| napi::Error::from_reason("geosite DB output needs code"))?;
             validate_geosite_output_format(options.output_format.as_deref())?;
+            let output_format =
+                parse_db_format_value(options.output_format.as_deref())?.unwrap_or(MmdbFormat::Dat);
             let result = convert_rule_file_to_classical(
                 input,
                 input_target.map(|target| target.as_str().to_string()),
                 options.input_format,
                 options.input_behavior,
             )?;
-            let output = build_geosite_dat_to_memory([(code, result)]).map_err(to_napi_error)?;
+            let output = build_geosite_db_to_memory([(code, result)], output_format)
+                .map_err(to_napi_error)?;
             Ok(any_db_result(output))
         }
         AnyTarget::Asn => {
