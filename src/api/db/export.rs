@@ -1,5 +1,6 @@
 use super::common::{
-    db_convert_result_to_memory, db_rule_set_to_memory, normalize_db_output_behavior,
+    db_convert_result_to_memory, db_rule_set_to_memory, normalize_geoip_output_behavior,
+    normalize_geosite_output_behavior,
 };
 use super::export_mmdb::export_geoip_mmdb_to_memory;
 use super::types::DbMemoryOutput;
@@ -61,7 +62,7 @@ pub fn export_geoip_dat_to_memory(
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
     let input = input.as_ref();
-    let behavior = normalize_db_output_behavior(target, format, behavior);
+    let behavior = normalize_geoip_output_behavior(target, format, behavior)?;
     if target == RuleTarget::General
         && format == OutputFormat::IpSet
         && behavior == BehaviorMode::Ipcidr
@@ -107,7 +108,7 @@ pub fn export_geosite_dat_to_memory(
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
     let input = input.as_ref();
-    let behavior = normalize_db_output_behavior(target, format, behavior);
+    let behavior = normalize_geosite_output_behavior(target, format, behavior)?;
     if target == RuleTarget::General
         && format == OutputFormat::RuleSet
         && behavior == BehaviorMode::Classical
@@ -156,7 +157,7 @@ fn export_sing_geosite_to_memory(
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
     let input = input.as_ref();
-    let behavior = normalize_db_output_behavior(target, format, behavior);
+    let behavior = normalize_geosite_output_behavior(target, format, behavior)?;
     if split {
         let sets = crate::codec::db::collect_sing_geosite_rule_sets(input, codes)?;
         let mut outputs = Vec::new();

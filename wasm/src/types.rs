@@ -21,6 +21,26 @@ pub(crate) struct AnyConvertOptions {
     pub asn: Option<u32>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BuildDbOptions {
+    pub output_target: String,
+    pub output_format: Option<String>,
+    pub input_format: Option<String>,
+    pub input_behavior: Option<String>,
+    pub entries: Vec<BuildDbEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BuildDbEntry {
+    pub key: String,
+    pub input_target: Option<String>,
+    pub input_format: Option<String>,
+    pub input_behavior: Option<String>,
+    pub payload: Vec<u8>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MatchOptions {

@@ -47,7 +47,7 @@ impl ConfigOutputFile {
             .as_deref()
             .map(BehaviorMode::parse_arg)
             .transpose()?
-            .unwrap_or(BehaviorMode::Ipcidr);
+            .unwrap_or(BehaviorMode::Auto);
 
         Ok(DbExportOutput {
             base,

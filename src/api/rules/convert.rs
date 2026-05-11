@@ -147,6 +147,7 @@ fn convert_dat_payload(payload: &[u8], options: ConvertOptions) -> Result<Option
         DatKind::Geosite => crate::rules::InputBehaviorMode::Domain,
     };
     let output_behavior = resolve_output_behavior(options, input_behavior)?;
+    validate_dat_output_behavior(kind, output_behavior)?;
     let mut result = match kind {
         DatKind::Geoip => convert_rule_set_output(
             crate::codec::dat::collect_geoip_dat_rule_set(payload, &[])?,
@@ -159,6 +160,20 @@ fn convert_dat_payload(payload: &[u8], options: ConvertOptions) -> Result<Option
         bail!("no supported rules found for the requested conversion");
     }
     Ok(Some(result))
+}
+
+fn validate_dat_output_behavior(kind: DatKind, behavior: BehaviorMode) -> Result<()> {
+    match (kind, behavior) {
+        (DatKind::Geosite, BehaviorMode::Domain | BehaviorMode::Classical) => Ok(()),
+        (DatKind::Geoip, BehaviorMode::Ipcidr | BehaviorMode::Classical) => Ok(()),
+        (DatKind::Geosite, BehaviorMode::Ipcidr) => {
+            bail!("geosite input only supports `domain` or `classical` output behavior")
+        }
+        (DatKind::Geoip, BehaviorMode::Domain) => {
+            bail!("geoip input only supports `ip` or `classical` output behavior")
+        }
+        (_, BehaviorMode::Auto) => Ok(()),
+    }
 }
 
 pub fn convert_files_to_path_streaming<P, I>(

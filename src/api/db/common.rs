@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use super::super::{convert_rule_set_output, write_outputs_as_to_memory_owned};
 use super::types::{DbMemoryOutput, DbStringOutput};
@@ -62,6 +62,50 @@ pub(super) fn normalize_db_output_behavior(
         (_, _, BehaviorMode::Auto) => BehaviorMode::Ipcidr,
         _ => behavior,
     }
+}
+
+pub(super) fn normalize_geoip_output_behavior(
+    target: RuleTarget,
+    format: OutputFormat,
+    behavior: BehaviorMode,
+) -> Result<BehaviorMode> {
+    let behavior = normalize_db_output_behavior(target, format, behavior);
+    validate_ip_db_output_behavior(behavior, "GeoIP")?;
+    Ok(behavior)
+}
+
+pub(super) fn normalize_asn_output_behavior(
+    target: RuleTarget,
+    format: OutputFormat,
+    behavior: BehaviorMode,
+) -> Result<BehaviorMode> {
+    let behavior = normalize_db_output_behavior(target, format, behavior);
+    validate_ip_db_output_behavior(behavior, "ASN")?;
+    Ok(behavior)
+}
+
+pub(super) fn normalize_geosite_output_behavior(
+    target: RuleTarget,
+    format: OutputFormat,
+    behavior: BehaviorMode,
+) -> Result<BehaviorMode> {
+    let behavior = match (target, format, behavior) {
+        (RuleTarget::General, OutputFormat::DomainSet, _) => BehaviorMode::Domain,
+        (RuleTarget::General, OutputFormat::IpSet, _) => BehaviorMode::Ipcidr,
+        (_, _, BehaviorMode::Auto) => BehaviorMode::Domain,
+        _ => behavior,
+    };
+    if !matches!(behavior, BehaviorMode::Domain | BehaviorMode::Classical) {
+        bail!("Geosite rule export only supports `domain` or `classical` behavior");
+    }
+    Ok(behavior)
+}
+
+fn validate_ip_db_output_behavior(behavior: BehaviorMode, name: &str) -> Result<()> {
+    if !matches!(behavior, BehaviorMode::Ipcidr | BehaviorMode::Classical) {
+        bail!("{name} rule export only supports `ip` or `classical` behavior");
+    }
+    Ok(())
 }
 
 pub(super) fn can_stream_ipset(

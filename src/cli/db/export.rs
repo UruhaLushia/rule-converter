@@ -29,6 +29,7 @@ pub(super) fn run_export_job(job: DbConfigJob) -> Result<()> {
     };
     match target {
         DbTarget::Geoip => {
+            let output = normalize_geoip_export_output(output)?;
             ensure_db_export_filter_or_dir(&output, !countries.is_empty(), "GeoIP")?;
             if is_dat(format) {
                 if output.split
@@ -73,6 +74,7 @@ pub(super) fn run_export_job(job: DbConfigJob) -> Result<()> {
             }
         }
         DbTarget::Geosite => {
+            let output = normalize_geosite_export_output(output)?;
             ensure_db_export_filter_or_dir(&output, !countries.is_empty(), "Geosite")?;
             if is_dat(format) {
                 if can_stream_geosite_general_ruleset(&output) {
@@ -128,6 +130,7 @@ pub(super) fn run_export_job(job: DbConfigJob) -> Result<()> {
             }
         }
         DbTarget::Asn => {
+            let output = normalize_asn_export_output(output)?;
             ensure_db_export_filter_or_dir(&output, !asns.is_empty(), "ASN")?;
             if can_stream_db_ipset(&output) {
                 let file = export_asn_mmdb_ipset_to_path(input, &output.base, &asns)?;

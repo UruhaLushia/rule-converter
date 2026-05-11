@@ -127,7 +127,7 @@ jobs:
                     split: true,
                     target: RuleTarget::General,
                     format: OutputFormat::IpSet,
-                    behavior: BehaviorMode::Ipcidr,
+                    behavior: BehaviorMode::Auto,
                 }
             );
             assert!(asns.is_empty());

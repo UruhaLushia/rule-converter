@@ -132,8 +132,8 @@ fn validate_output_request(
         {
             bail!("general output only supports `domainset`, `ruleset`, and `ipset` formats");
         }
-        RuleTarget::Egern if format != OutputFormat::RuleSet => {
-            bail!("egern output only supports `ruleset` format");
+        RuleTarget::Egern if !matches!(format, OutputFormat::Yaml | OutputFormat::RuleSet) => {
+            bail!("egern output only supports `yaml` format");
         }
         _ => {}
     }

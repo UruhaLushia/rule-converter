@@ -62,6 +62,39 @@ pub(super) fn write_db_rule_set_output(
     report_result(files, skipped)
 }
 
+pub(super) fn normalize_geoip_export_output(mut output: DbExportOutput) -> Result<DbExportOutput> {
+    output.behavior = normalize_ip_db_behavior(output.behavior, "GeoIP")?;
+    Ok(output)
+}
+
+pub(super) fn normalize_asn_export_output(mut output: DbExportOutput) -> Result<DbExportOutput> {
+    output.behavior = normalize_ip_db_behavior(output.behavior, "ASN")?;
+    Ok(output)
+}
+
+pub(super) fn normalize_geosite_export_output(
+    mut output: DbExportOutput,
+) -> Result<DbExportOutput> {
+    output.behavior = match output.behavior {
+        BehaviorMode::Auto => BehaviorMode::Domain,
+        BehaviorMode::Domain | BehaviorMode::Classical => output.behavior,
+        BehaviorMode::Ipcidr => {
+            anyhow::bail!("Geosite rule export only supports `domain` or `classical` behavior")
+        }
+    };
+    Ok(output)
+}
+
+fn normalize_ip_db_behavior(behavior: BehaviorMode, name: &str) -> Result<BehaviorMode> {
+    match behavior {
+        BehaviorMode::Auto => Ok(BehaviorMode::Ipcidr),
+        BehaviorMode::Ipcidr | BehaviorMode::Classical => Ok(behavior),
+        BehaviorMode::Domain => {
+            anyhow::bail!("{name} rule export only supports `ip` or `classical` behavior")
+        }
+    }
+}
+
 pub(super) fn write_db_bytes_output(
     path: &Path,
     count: usize,

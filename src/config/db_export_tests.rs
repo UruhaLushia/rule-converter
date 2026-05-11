@@ -37,7 +37,7 @@ jobs:
                     split: true,
                     target: RuleTarget::General,
                     format: OutputFormat::Text,
-                    behavior: BehaviorMode::Ipcidr,
+                    behavior: BehaviorMode::Auto,
                 }
             );
             assert!(countries.is_empty());

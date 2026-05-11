@@ -2,7 +2,8 @@ use anyhow::Result;
 use std::path::Path;
 
 use super::common::{
-    can_stream_ipset, db_ipset_string_output, db_rule_set_to_memory, normalize_db_output_behavior,
+    can_stream_ipset, db_ipset_string_output, db_rule_set_to_memory, normalize_asn_output_behavior,
+    normalize_geoip_output_behavior,
 };
 use super::types::{DbMemoryOutput, DbStringOutput};
 use crate::RuleTarget;
@@ -19,7 +20,7 @@ pub fn export_geoip_mmdb_to_memory(
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
     let input = input.as_ref();
-    let behavior = normalize_db_output_behavior(target, format, behavior);
+    let behavior = normalize_geoip_output_behavior(target, format, behavior)?;
     if can_stream_ipset(split, target, format, behavior) {
         let (count, bytes) = crate::codec::db::export_geoip_mmdb_ipset_to_bytes(input, countries)?;
         return Ok(vec![DbMemoryOutput {
@@ -57,7 +58,7 @@ pub fn export_geoip_mmdb_file_to_memory(
     format: OutputFormat,
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
-    let behavior = normalize_db_output_behavior(target, format, behavior);
+    let behavior = normalize_geoip_output_behavior(target, format, behavior)?;
     if can_stream_ipset(split, target, format, behavior) {
         let (count, bytes) =
             crate::codec::db::export_geoip_mmdb_file_ipset_to_bytes(input, countries)?;
@@ -97,7 +98,7 @@ pub fn export_asn_mmdb_to_memory(
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
     let input = input.as_ref();
-    let behavior = normalize_db_output_behavior(target, format, behavior);
+    let behavior = normalize_asn_output_behavior(target, format, behavior)?;
     if can_stream_ipset(split, target, format, behavior) {
         let (count, bytes) = crate::codec::db::export_asn_mmdb_ipset_to_bytes(input, asns)?;
         return Ok(vec![DbMemoryOutput {
@@ -135,7 +136,7 @@ pub fn export_asn_mmdb_file_to_memory(
     format: OutputFormat,
     behavior: BehaviorMode,
 ) -> Result<Vec<DbMemoryOutput>> {
-    let behavior = normalize_db_output_behavior(target, format, behavior);
+    let behavior = normalize_asn_output_behavior(target, format, behavior)?;
     if can_stream_ipset(split, target, format, behavior) {
         let (count, bytes) = crate::codec::db::export_asn_mmdb_file_ipset_to_bytes(input, asns)?;
         return Ok(vec![DbMemoryOutput {
